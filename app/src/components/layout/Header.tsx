@@ -10,8 +10,11 @@ import {
   StockOutlined,
   UserOutlined
 } from '@ant-design/icons'
-import { useAppSelector } from '@store/hooks'
+import { useAppDispatch, useAppSelector } from '@store/hooks'
+import { fetchNotificationUnreadCount } from '@store/slices/notificationsSlice'
+import { fetchRiskAlertUnreadCount } from '@store/slices/riskAlertsSlice'
 import { Avatar, Badge, Button, Dropdown, Layout, Menu } from 'antd'
+import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 const { Header: AntHeader } = Layout
@@ -24,10 +27,17 @@ interface HeaderProps {
 const Header = ({ collapsed, onCollapse }: HeaderProps) => {
   const navigate = useNavigate()
   const location = useLocation()
+  const dispatch = useAppDispatch()
   const { totalUnreadCount } = useAppSelector((state) => state.notifications)
   const riskAlertUnreadCount = useAppSelector((state) => state.riskAlerts.unreadCount)
   // 导航栏未读计数 = 通知未读 + 风险提醒未读
   const totalAlertCount = totalUnreadCount + riskAlertUnreadCount
+
+  // 组件挂载时获取未读计数
+  useEffect(() => {
+    dispatch(fetchNotificationUnreadCount())
+    dispatch(fetchRiskAlertUnreadCount())
+  }, [dispatch])
 
   const menuItems = [
     {

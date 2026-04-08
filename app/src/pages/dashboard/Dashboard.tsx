@@ -44,15 +44,17 @@ const Dashboard = () => {
         riskAlertsApi.getUnreadCount(1)
       ])
 
-      const riskCount = riskAlertsResponse.success ? riskAlertsResponse.data.total : 0
-      const activeCount = activeAlertsResponse.success ? activeAlertsResponse.data.length : 0
+      const riskUnreadCount = riskAlertsResponse.success ? riskAlertsResponse.data.total : 0
+      const activeAlertsCount = activeAlertsResponse.success ? activeAlertsResponse.data.length : 0
+      // 活跃提醒 = 价格提醒活跃数 + 风险提醒未读数
+      const totalActiveAlerts = activeAlertsCount + riskUnreadCount
 
       setStats({
         totalStocks: statsResponse.totalStocks || 0,
         totalFunds: statsResponse.totalFunds || 0,
-        activeAlerts: activeCount,
+        activeAlerts: totalActiveAlerts,
         triggeredAlerts: statsResponse.triggeredAlerts || 0,
-        riskAlertCount: riskCount
+        riskAlertCount: riskUnreadCount
       })
 
       setRecentAlerts(alertsResponse.data || [])
