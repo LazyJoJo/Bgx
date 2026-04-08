@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stock.fund.infrastructure.mapper.StockQuoteMapper">
+
+    <select id="findByStockId" parameterType="long" resultType="com.stock.fund.infrastructure.entity.StockQuotePO">
+        SELECT * FROM stock_quote WHERE stock_id = #{stockId} ORDER BY quote_time DESC
+    </select>
+
+    <select id="findByStockIdAndQuoteTimeBetween" resultType="com.stock.fund.infrastructure.entity.StockQuotePO">
+        SELECT * FROM stock_quote
+        WHERE stock_id = #{stockId}
+        AND quote_time BETWEEN #{start} AND #{end}
+        ORDER BY quote_time DESC
+    </select>
+
+    <select id="findAllLatestQuotes" resultType="com.stock.fund.infrastructure.entity.StockQuotePO">
+        SELECT sq.* FROM stock_quote sq
+        INNER JOIN (
+            SELECT stock_id, MAX(quote_time) as max_quote_time
+            FROM stock_quote
+            GROUP BY stock_id
+        ) latest ON sq.stock_id = latest.stock_id AND sq.quote_time = latest.max_quote_time
+    </select>
+
+</mapper>

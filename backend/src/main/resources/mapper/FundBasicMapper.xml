@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stock.fund.infrastructure.mapper.FundBasicMapper">
+
+    <select id="findByFundCode" parameterType="string" resultType="com.stock.fund.infrastructure.entity.FundBasicPO">
+        SELECT * FROM fund_basic WHERE fund_code = #{fundCode}
+    </select>
+
+    <select id="findByType" parameterType="string" resultType="com.stock.fund.infrastructure.entity.FundBasicPO">
+        SELECT * FROM fund_basic WHERE type = #{type}
+    </select>
+
+    <select id="findByManager" parameterType="string" resultType="com.stock.fund.infrastructure.entity.FundBasicPO">
+        SELECT * FROM fund_basic WHERE manager = #{manager}
+    </select>
+
+</mapper>

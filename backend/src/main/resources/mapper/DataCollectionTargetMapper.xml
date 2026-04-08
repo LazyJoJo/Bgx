@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stock.fund.infrastructure.mapper.DataCollectionTargetMapper">
+
+    <select id="findByCode" parameterType="string" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target WHERE code = #{code}
+    </select>
+
+    <select id="findByType" parameterType="string" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target WHERE type = #{type} ORDER BY code
+    </select>
+
+    <select id="findByActive" parameterType="boolean" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target WHERE active = #{active} ORDER BY code
+    </select>
+
+    <select id="findByTypeAndActive" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target 
+        WHERE type = #{type} AND active = #{active} 
+        ORDER BY code
+    </select>
+
+    <select id="findByCategory" parameterType="string" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target WHERE category = #{category} ORDER BY code
+    </select>
+
+    <select id="findActiveTargets" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target 
+        WHERE active = true 
+        ORDER BY type, code
+    </select>
+
+    <select id="findTargetsNeedingCollection" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target 
+        WHERE active = true 
+        AND (next_collection_time IS NULL OR next_collection_time &lt;= NOW())
+        ORDER BY type, code
+    </select>
+
+    <delete id="deleteByCode" parameterType="string">
+        DELETE FROM data_collection_target WHERE code = #{code}
+    </delete>
+
+</mapper>

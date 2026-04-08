@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stock.fund.infrastructure.mapper.FundQuoteMapper">
+
+    <select id="findByFundCode" resultType="com.stock.fund.infrastructure.entity.FundQuotePO">
+        SELECT * FROM fund_quote WHERE fund_code = #{fundCode} ORDER BY quote_date DESC, quote_time_only DESC
+    </select>
+    
+    <select id="findLatestByFundCode" resultType="com.stock.fund.infrastructure.entity.FundQuotePO">
+        SELECT * FROM fund_quote 
+        WHERE fund_code = #{fundCode} 
+        ORDER BY quote_date DESC, quote_time_only DESC 
+        LIMIT 1
+    </select>
+    
+    <select id="findByFundCodeAndQuoteDate" resultType="com.stock.fund.infrastructure.entity.FundQuotePO">
+        SELECT * FROM fund_quote 
+        WHERE fund_code = #{fundCode} 
+        AND quote_date = #{quoteDate}
+        ORDER BY quote_time_only DESC 
+        LIMIT 1
+    </select>
+
+    <select id="findAllLatestQuotes" resultType="com.stock.fund.infrastructure.entity.FundQuotePO">
+        SELECT DISTINCT ON (fund_code) * 
+        FROM fund_quote 
+        ORDER BY fund_code, quote_date DESC, quote_time_only DESC
+    </select>
+
+    <select id="findPageByCondition" resultType="com.stock.fund.infrastructure.entity.FundQuotePO">
+        SELECT * FROM fund_quote
+        <where>
+            <if test="fundCode != null and fundCode != ''">
+                AND fund_code LIKE CONCAT('%', #{fundCode}, '%')
+            </if>
+            <if test="fundName != null and fundName != ''">
+                AND fund_name LIKE CONCAT('%', #{fundName}, '%')
+            </if>
+            <if test="startDate != null">
+                AND quote_date &gt;= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND quote_date &lt;= #{endDate}
+            </if>
+        </where>
+        <choose>
+            <when test="orderBy != null and orderBy != '' and orderDirection != null">
+                ORDER BY ${orderBy} ${orderDirection}
+            </when>
+            <otherwise>
+                ORDER BY fund_code ASC, quote_date DESC
+            </otherwise>
+        </choose>
+    </select>
+
+</mapper>

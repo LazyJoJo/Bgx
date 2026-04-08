@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stock.fund.infrastructure.mapper.StockBasicMapper">
+
+    <select id="findBySymbol" parameterType="string" resultType="com.stock.fund.infrastructure.entity.StockBasicPO">
+        SELECT * FROM stock_basic WHERE symbol = #{symbol}
+    </select>
+
+    <select id="findByIndustry" parameterType="string" resultType="com.stock.fund.infrastructure.entity.StockBasicPO">
+        SELECT * FROM stock_basic WHERE industry = #{industry}
+    </select>
+
+    <select id="findByMarket" parameterType="string" resultType="com.stock.fund.infrastructure.entity.StockBasicPO">
+        SELECT * FROM stock_basic WHERE market = #{market}
+    </select>
+
+    <insert id="insertBatchSomeColumn">
+        INSERT INTO stock_basic (symbol, name, industry, market, listing_date, total_share, float_share, pe, pb, created_at, updated_at)
+        VALUES
+        <foreach item="item" index="index" separator="," close="" collection="list">
+            (#{item.symbol}, #{item.name}, #{item.industry}, #{item.market}, #{item.listingDate}, #{item.totalShare}, #{item.floatShare}, #{item.pe}, #{item.pb}, #{item.createdAt}, #{item.updatedAt})
+        </foreach>
+        ON CONFLICT (symbol) DO UPDATE SET
+            name = EXCLUDED.name,
+            industry = EXCLUDED.industry,
+            market = EXCLUDED.market,
+            listing_date = EXCLUDED.listing_date,
+            total_share = EXCLUDED.total_share,
+            float_share = EXCLUDED.float_share,
+            pe = EXCLUDED.pe,
+            pb = EXCLUDED.pb,
+            updated_at = EXCLUDED.updated_at
+    </insert>
+
+</mapper>
