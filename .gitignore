@@ -35,3 +35,7 @@ application-secrets.yml
 # Java compiled files
 *.class
 target/
+
+# SSL Keystore files
+*.p12
+*.jks

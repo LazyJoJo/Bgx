@@ -2,7 +2,7 @@ package com.stock.fund.domain.repository;
 
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,13 +29,28 @@ public interface RiskAlertRepository {
     /**
      * 根据用户ID查询风险提醒（分页）
      */
-    List<RiskAlert> findByUserId(Long userId, LocalDateTime cursor, int limit);
+    List<RiskAlert> findByUserId(Long userId, LocalDate cursor, int limit);
 
     /**
-     * 根据用户ID和标的代码+日期查询已存在的风险提醒
-     * 用于判断当日是否已存在该标的的风险提醒
+     * 根据用户ID、标的代码、日期查询已存在的风险提醒
      */
-    Optional<RiskAlert> findByUserIdAndSymbolAndDate(Long userId, String symbol, LocalDateTime date);
+    Optional<RiskAlert> findByUserIdAndSymbolAndAlertDateAndTimePoint(
+            Long userId, String symbol, LocalDate alertDate, String timePoint);
+
+    /**
+     * 根据用户ID和日期范围查询
+     */
+    List<RiskAlert> findByUserIdAndDateRange(Long userId, LocalDate startDate, LocalDate endDate);
+
+    /**
+     * 分页查询用户风险提醒（使用查询对象避免参数过多）
+     */
+    List<RiskAlert> findByUserIdWithPage(RiskAlertQuery query);
+
+    /**
+     * 统计用户风险提醒数量（使用查询对象避免参数过多）
+     */
+    long countByUserId(RiskAlertQuery query);
 
     /**
      * 获取用户未读风险提醒数量
@@ -46,11 +61,6 @@ public interface RiskAlertRepository {
      * 标记用户所有风险提醒为已读
      */
     void markAllAsRead(Long userId);
-
-    /**
-     * 根据用户ID查询最新的风险提醒（用于游标分页）
-     */
-    List<RiskAlert> findLatestByUserId(Long userId, int limit);
 
     /**
      * 根据ID删除

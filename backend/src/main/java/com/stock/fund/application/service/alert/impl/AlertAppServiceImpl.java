@@ -1,6 +1,8 @@
 package com.stock.fund.application.service.alert.impl;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,9 +11,11 @@ import org.springframework.stereotype.Service;
 
 import com.stock.fund.application.service.DataCollectionAppService;
 import com.stock.fund.application.service.alert.AlertAppService;
+import com.stock.fund.application.service.alert.dto.*;
 import com.stock.fund.domain.entity.alert.AlertHistory;
 import com.stock.fund.domain.entity.alert.PriceAlert;
 import com.stock.fund.domain.repository.alert.AlertHistoryRepository;
+import com.stock.fund.domain.repository.alert.PriceAlertQuery;
 import com.stock.fund.domain.repository.alert.PriceAlertRepository;
 
 @Service
@@ -29,15 +33,107 @@ public class AlertAppServiceImpl implements AlertAppService {
     private DataCollectionAppService dataCollectionAppService;
 
     @Override
-    public PriceAlert createAlert(PriceAlert alert) {
-        logger.info("创建提醒: 用户ID={}, 标的代码={}, 提醒类型={}", alert.getUserId(), alert.getSymbol(), alert.getAlertType());
-        return priceAlertRepository.save(alert);
+    public CreateAlertResponse createAlert(CreateAlertRequest request) {
+        logger.info("创建提醒: 用户ID={}, 标的代码={}, 提醒类型={}",
+                request.getUserId(), request.getSymbol(), request.getAlertType());
+
+        // 检查是否已存在相同标的的提醒
+        Optional<PriceAlert> existing = priceAlertRepository.findByUserIdAndSymbolAndSymbolType(
+                request.getUserId(), request.getSymbol(), request.getSymbolType());
+
+        if (existing.isPresent()) {
+            logger.info("该标的已存在提醒: ID={}", existing.get().getId());
+            return CreateAlertResponse.existed(existing.get());
+        }
+
+        // 创建新提醒
+        PriceAlert alert = new PriceAlert();
+        alert.setUserId(request.getUserId());
+        alert.setSymbol(request.getSymbol());
+        alert.setSymbolName(request.getSymbolName());
+        alert.setSymbolType(request.getSymbolType());
+        alert.setAlertType(request.getAlertType());
+        alert.setTargetPrice(request.getTargetPrice());
+        alert.setTargetChangePercent(request.getTargetChangePercent());
+        alert.setBasePrice(request.getBasePrice());
+        alert.setStatus(request.getStatus() != null && request.getStatus() ? "ACTIVE" : "INACTIVE");
+
+        PriceAlert saved = priceAlertRepository.save(alert);
+        logger.info("提醒创建成功: ID={}", saved.getId());
+
+        return CreateAlertResponse.created(saved);
     }
 
     @Override
-    public PriceAlert updateAlert(Long alertId, PriceAlert alert) {
-        alert.setId(alertId);
+    public BatchCreateAlertResponse batchCreateAlert(BatchCreateAlertRequest request) {
+        logger.info("批量创建提醒: 标的数量={}, 类型={}",
+                request.getSymbols().size(), request.getSymbolType());
+
+        List<PriceAlert> successList = new ArrayList<>();
+        List<BatchCreateAlertResponse.FailedAlert> failList = new ArrayList<>();
+
+        for (String symbol : request.getSymbols()) {
+            try {
+                CreateAlertRequest singleRequest = new CreateAlertRequest();
+                singleRequest.setUserId(request.getUserId());
+                singleRequest.setSymbol(symbol);
+                singleRequest.setSymbolName(request.getSymbolName());
+                singleRequest.setSymbolType(request.getSymbolType());
+                singleRequest.setAlertType(request.getAlertType());
+                singleRequest.setTargetPrice(request.getTargetPrice());
+                singleRequest.setTargetChangePercent(request.getTargetChangePercent());
+                singleRequest.setBasePrice(request.getBasePrice());
+                singleRequest.setStatus(request.getStatus());
+
+                CreateAlertResponse response = createAlert(singleRequest);
+                if (response.isCreated()) {
+                    successList.add(response.getAlert());
+                } else {
+                    // 已存在，返回已有提醒也算成功
+                    successList.add(response.getAlert());
+                }
+            } catch (Exception e) {
+                logger.error("批量创建提醒失败: symbol={}", symbol, e);
+                failList.add(BatchCreateAlertResponse.FailedAlert.builder()
+                        .symbol(symbol)
+                        .reason(e.getMessage())
+                        .build());
+            }
+        }
+
+        logger.info("批量创建完成: 成功={}, 失败={}", successList.size(), failList.size());
+
+        return BatchCreateAlertResponse.builder()
+                .successCount(successList.size())
+                .failCount(failList.size())
+                .successList(successList)
+                .failList(failList)
+                .build();
+    }
+
+    @Override
+    public PriceAlert updateAlert(Long alertId, UpdateAlertRequest request) {
         logger.info("更新提醒: ID={}", alertId);
+
+        PriceAlert alert = priceAlertRepository.findById(alertId)
+                .orElseThrow(() -> new IllegalArgumentException("提醒不存在: ID=" + alertId));
+
+        if (request.getAlertType() != null) {
+            alert.setAlertType(request.getAlertType());
+        }
+        if (request.getTargetPrice() != null) {
+            alert.setTargetPrice(request.getTargetPrice());
+        }
+        if (request.getTargetChangePercent() != null) {
+            alert.setTargetChangePercent(request.getTargetChangePercent());
+        }
+        if (request.getBasePrice() != null) {
+            alert.setBasePrice(request.getBasePrice());
+        }
+        if (request.getStatus() != null) {
+            alert.setStatus(request.getStatus() ? "ACTIVE" : "INACTIVE");
+        }
+
         return priceAlertRepository.save(alert);
     }
 
@@ -45,6 +141,37 @@ public class AlertAppServiceImpl implements AlertAppService {
     public void deleteAlert(Long alertId) {
         logger.info("删除提醒: ID={}", alertId);
         priceAlertRepository.deleteById(alertId);
+    }
+
+    @Override
+    public AlertPageResponse<PriceAlert> queryAlerts(AlertQueryDTO query) {
+        logger.debug("分页查询提醒: userId={}, page={}, size={}", query.getUserId(), query.getPage(), query.getSize());
+
+        // 构建查询对象
+        PriceAlertQuery queryObj = PriceAlertQuery.builder()
+                .userId(query.getUserId())
+                .symbol(query.getSymbol())
+                .symbolType(query.getSymbolType())
+                .alertType(query.getAlertType())
+                .status(query.getStatus())
+                .page(query.getPage())
+                .size(query.getSize())
+                .sort(query.getSort())
+                .build();
+
+        List<PriceAlert> records = priceAlertRepository.findByUserIdWithPage(queryObj);
+
+        long total = priceAlertRepository.countByUserId(queryObj);
+
+        int pages = (int) Math.ceil((double) total / query.getSize());
+
+        return AlertPageResponse.<PriceAlert>builder()
+                .records(records)
+                .total(total)
+                .page(query.getPage())
+                .size(query.getSize())
+                .pages(pages)
+                .build();
     }
 
     @Override
@@ -60,6 +187,16 @@ public class AlertAppServiceImpl implements AlertAppService {
     }
 
     @Override
+    public Optional<PriceAlert> getAlertById(Long alertId) {
+        return priceAlertRepository.findById(alertId);
+    }
+
+    @Override
+    public Optional<PriceAlert> findExistingAlert(Long userId, String symbol, String symbolType) {
+        return priceAlertRepository.findByUserIdAndSymbolAndSymbolType(userId, symbol, symbolType);
+    }
+
+    @Override
     public void activateAlert(Long alertId) {
         logger.info("激活提醒: ID={}", alertId);
         priceAlertRepository.findById(alertId).ifPresent(alert -> {
@@ -70,7 +207,7 @@ public class AlertAppServiceImpl implements AlertAppService {
 
     @Override
     public void deactivateAlert(Long alertId) {
-        logger.info("提醒: ID={}", alertId);
+        logger.info("禁用提醒: ID={}", alertId);
         priceAlertRepository.findById(alertId).ifPresent(alert -> {
             alert.deactivate();
             priceAlertRepository.save(alert);
@@ -92,11 +229,11 @@ public class AlertAppServiceImpl implements AlertAppService {
     @Override
     public void checkAndTriggerAlerts(String symbol, String symbolType, Double currentPrice) {
         List<PriceAlert> activeAlerts = priceAlertRepository.findActiveAlerts();
-        logger.debug("检查提醒: 标的代码={}, 标的类型={}, 当前价格={},数量={}", symbol, symbolType, currentPrice, activeAlerts.size());
+        logger.debug("检查提醒: 标的代码={}, 标的类型={}, 当前价格={}, 数量={}",
+                symbol, symbolType, currentPrice, activeAlerts.size());
 
         for (PriceAlert alert : activeAlerts) {
             if (alert.getSymbol().equals(symbol) && alert.getSymbolType().equals(symbolType)) {
-
                 if (alert.shouldTrigger(currentPrice)) {
                     triggerAlert(alert, currentPrice);
                 }
@@ -116,19 +253,22 @@ public class AlertAppServiceImpl implements AlertAppService {
                     triggerAlert(alert, currentPrice);
                 }
             } catch (Exception e) {
-                logger.error("检查提醒失败: 标的代码={}, 类型={}", alert.getSymbol(), alert.getSymbolType(), e);
+                logger.error("检查提醒失败: 标的代码={}, 类型={}",
+                        alert.getSymbol(), alert.getSymbolType(), e);
             }
         }
         logger.info("批量检查提醒完成");
     }
 
-    // 私有方法：触发提醒
+    // 触发提醒
     private void triggerAlert(PriceAlert alert, Double currentPrice) {
-        logger.info("触发提醒: ID={}, 标的代码={}, 当前价格={}", alert.getId(), alert.getSymbol(), currentPrice);
+        logger.info("触发提醒: ID={}, 标的代码={}, 当前价格={}",
+                alert.getId(), alert.getSymbol(), currentPrice);
 
         // 记录触发历史
         AlertHistory history = AlertHistory.createFromAlert(alert, currentPrice,
-                String.format("价格达到目标值 %.2f，当前价格 %.2f", alert.getTargetPrice(), currentPrice));
+                String.format("价格达到目标值 %.2f，当前价格 %.2f",
+                        alert.getTargetPrice(), currentPrice));
         alertHistoryRepository.save(history);
 
         // 更新提醒状态
@@ -136,19 +276,16 @@ public class AlertAppServiceImpl implements AlertAppService {
         alert.setCurrentValue(currentPrice);
         priceAlertRepository.save(alert);
 
-        // TODO:这里可以发送实时通知到前端WebSocket
         logger.info("提醒触发成功: ID={}", alert.getId());
     }
 
-    // 私有方法：获取当前价格
+    // 获取当前价格
     private Double getCurrentPrice(String symbol, String symbolType) {
         try {
             if ("STOCK".equals(symbolType)) {
-                // 从数据采集服务获取股票最新行情
                 var stockQuote = dataCollectionAppService.collectStockQuote(symbol);
                 return stockQuote != null ? stockQuote.getClose() : null;
             } else if ("FUND".equals(symbolType)) {
-                // 从数据采集服务获取基金最新净值
                 var fundQuote = dataCollectionAppService.collectFundQuote(symbol);
                 return fundQuote != null ? fundQuote.getNav() : null;
             }

@@ -1,6 +1,7 @@
 package com.stock.fund.infrastructure.repository.riskalert;
 
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
+import com.stock.fund.domain.repository.RiskAlertQuery;
 import com.stock.fund.domain.repository.RiskAlertRepository;
 import com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO;
 import com.stock.fund.infrastructure.mapper.riskalert.RiskAlertMapper;
@@ -10,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -47,18 +47,37 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
     }
 
     @Override
-    public List<RiskAlert> findByUserId(Long userId, LocalDateTime cursor, int limit) {
-        List<RiskAlertPO> pos = riskAlertMapper.findByUserIdWithCursor(userId, cursor, limit);
+    public List<RiskAlert> findByUserId(Long userId, LocalDate cursor, int limit) {
+        LocalDateTime cursorTime = cursor != null ? cursor.atStartOfDay() : LocalDateTime.now();
+        List<RiskAlertPO> pos = riskAlertMapper.findByUserIdWithCursor(userId, cursorTime, limit);
         return pos.stream().map(this::mapToDomain).collect(Collectors.toList());
     }
 
     @Override
-    public Optional<RiskAlert> findByUserIdAndSymbolAndDate(Long userId, String symbol, LocalDateTime date) {
-        // 将日期转换为当天开始和结束时间
-        LocalDateTime startOfDay = date.toLocalDate().atStartOfDay();
-        LocalDateTime endOfDay = date.toLocalDate().atTime(LocalTime.MAX);
-        RiskAlertPO po = riskAlertMapper.findByUserIdAndSymbolAndDate(userId, symbol, startOfDay);
+    public Optional<RiskAlert> findByUserIdAndSymbolAndAlertDateAndTimePoint(
+            Long userId, String symbol, LocalDate alertDate, String timePoint) {
+        RiskAlertPO po = riskAlertMapper.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                userId, symbol, alertDate, timePoint);
         return po != null ? Optional.of(mapToDomain(po)) : Optional.empty();
+    }
+
+    @Override
+    public List<RiskAlert> findByUserIdAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
+        List<RiskAlertPO> pos = riskAlertMapper.findByUserIdAndDateRange(userId, startDate, endDate);
+        return pos.stream().map(this::mapToDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<RiskAlert> findByUserIdWithPage(RiskAlertQuery query) {
+        List<RiskAlertPO> pos = riskAlertMapper.findByUserIdWithPage(
+                query.getUserId(), query.getStartDate(), query.getEndDate(),
+                query.getPage(), query.getSize(), query.getSort());
+        return pos.stream().map(this::mapToDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    public long countByUserId(RiskAlertQuery query) {
+        return riskAlertMapper.countByUserId(query.getUserId(), query.getStartDate(), query.getEndDate());
     }
 
     @Override
@@ -73,12 +92,6 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
     }
 
     @Override
-    public List<RiskAlert> findLatestByUserId(Long userId, int limit) {
-        List<RiskAlertPO> pos = riskAlertMapper.findByUserIdWithCursor(userId, LocalDateTime.now(), limit);
-        return pos.stream().map(this::mapToDomain).collect(Collectors.toList());
-    }
-
-    @Override
     public void deleteById(Long id) {
         riskAlertMapper.deleteById(id);
     }
@@ -90,13 +103,14 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
         alert.setSymbol(po.getSymbol());
         alert.setSymbolType(po.getSymbolType());
         alert.setSymbolName(po.getSymbolName());
+        alert.setAlertDate(po.getAlertDate());
+        alert.setTimePoint(po.getTimePoint());
+        alert.setHasRisk(po.getHasRisk());
         alert.setChangePercent(po.getChangePercent());
         alert.setCurrentPrice(po.getCurrentPrice());
         alert.setYesterdayClose(po.getYesterdayClose());
-        alert.setTriggerCount(po.getTriggerCount());
         alert.setIsRead(po.getIsRead());
         alert.setTriggeredAt(po.getTriggeredAt());
-        alert.setTriggerReason(po.getTriggerReason());
         alert.setCreatedAt(po.getCreatedAt());
         alert.setUpdatedAt(po.getUpdatedAt());
         return alert;
@@ -109,13 +123,14 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
         po.setSymbol(alert.getSymbol());
         po.setSymbolType(alert.getSymbolType());
         po.setSymbolName(alert.getSymbolName());
+        po.setAlertDate(alert.getAlertDate());
+        po.setTimePoint(alert.getTimePoint());
+        po.setHasRisk(alert.getHasRisk());
         po.setChangePercent(alert.getChangePercent());
         po.setCurrentPrice(alert.getCurrentPrice());
         po.setYesterdayClose(alert.getYesterdayClose());
-        po.setTriggerCount(alert.getTriggerCount());
         po.setIsRead(alert.getIsRead());
         po.setTriggeredAt(alert.getTriggeredAt());
-        po.setTriggerReason(alert.getTriggerReason());
         po.setCreatedAt(alert.getCreatedAt());
         po.setUpdatedAt(alert.getUpdatedAt());
         return po;

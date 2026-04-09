@@ -19,12 +19,15 @@ export default defineConfig({
   server: {
     port: 8080,
     host: '127.0.0.1',
+    https: {
+      key: './key.pem',
+      cert: './cert.pem',
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:9090',  // 后端服务端口
+        target: 'https://localhost:9090',
         changeOrigin: true,
-        // 不需要 rewrite，直接使用 /api 路径
-        // 后端接口格式：http://localhost:9090/api/xxx
+        secure: false,
       }
     }
   },

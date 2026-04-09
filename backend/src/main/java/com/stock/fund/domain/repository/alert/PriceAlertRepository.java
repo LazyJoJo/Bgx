@@ -15,4 +15,19 @@ public interface PriceAlertRepository {
     PriceAlert save(PriceAlert alert);
     void deleteById(Long id);
     List<PriceAlert> saveAll(List<PriceAlert> alerts);
+
+    /**
+     * 查找同一用户是否已存在相同标的的提醒
+     */
+    Optional<PriceAlert> findByUserIdAndSymbolAndSymbolType(Long userId, String symbol, String symbolType);
+
+    /**
+     * 分页查询用户的提醒（使用查询对象避免参数过多）
+     */
+    List<PriceAlert> findByUserIdWithPage(PriceAlertQuery query);
+
+    /**
+     * 统计用户的提醒数量（使用查询对象避免参数过多）
+     */
+    long countByUserId(PriceAlertQuery query);
 }

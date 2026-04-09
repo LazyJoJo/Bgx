@@ -1,7 +1,10 @@
 package com.stock.fund.application.service.riskalert;
 
-import com.stock.fund.application.service.riskalert.dto.RiskAlertMergeDTO;
+import com.stock.fund.application.service.riskalert.dto.*;
+import com.stock.fund.domain.entity.riskalert.RiskAlert;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 风险提醒应用服务接口
@@ -15,26 +18,67 @@ public interface RiskAlertAppService {
     void checkAndCreateRiskAlerts();
 
     /**
-     * 获取用户未读风险提醒数量
+     * 创建或更新风险提醒
+     * 根据(userId, symbol, alertDate, timePoint)判断是否已存在
+     * 如果存在则更新，不存在则创建
+     */
+    RiskAlert createOrUpdateRiskAlert(RiskAlert riskAlert);
+
+    /**
+     * 分页查询风险提醒
+     */
+    RiskAlertPageResponse<RiskAlert> queryRiskAlerts(RiskAlertQueryDTO query);
+
+    /**
+     * 获取今日风险提醒（按日期分组）
+     */
+    List<RiskAlertSummaryDTO> getTodayRiskAlerts(Long userId);
+
+    /**
+     * 获取指定日期范围的风险提醒（按日期分组）
+     */
+    List<RiskAlertSummaryDTO> getRiskAlertsByDateRange(Long userId, LocalDate startDate, LocalDate endDate);
+
+    /**
+     * 获取合并后的风险提醒列表
+     */
+    List<RiskAlertMergeDTO> getMergedRiskAlerts(Long userId, Long cursor, int limit);
+
+    /**
+     * 获取未读数量
      */
     long getUnreadCount(Long userId);
 
     /**
-     * 标记用户所有风险提醒为已读
+     * 获取用户今日风险数据条数（用于仪表盘显示）
+     * 注意：一个股票/基金算一条，即使存在多个触发记录
+     */
+    int getTodayRiskAlertCount(Long userId);
+
+    /**
+     * 标记单条已读
+     */
+    void markAsRead(Long riskAlertId);
+
+    /**
+     * 标记全部已读
      */
     void markAllAsRead(Long userId);
 
     /**
-     * 获取用户风险提醒列表（合并后的数据，用于展示）
-     * @param userId 用户ID
-     * @param cursor 游标（时间戳），用于分页
-     * @param limit 每页大小
-     * @return 合并后的风险提醒列表
+     * 根据ID获取风险提醒
      */
-    List<RiskAlertMergeDTO> getMergedRiskAlerts(Long userId, Long cursor, int limit);
+    Optional<RiskAlert> getById(Long id);
 
     /**
      * 根据ID删除风险提醒
      */
     void deleteById(Long id);
+
+    /**
+     * 处理价格提醒触发的风险
+     * 检查用户设置的价格提醒，根据涨跌幅判断是否产生风险记录
+     */
+    void processAlertTriggeredRisk(Long userId, String symbol, String symbolType,
+                                    Double currentPrice, Double yesterdayClose);
 }

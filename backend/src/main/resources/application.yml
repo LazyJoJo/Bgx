@@ -35,6 +35,15 @@ spring:
 # 服务器配置
 server:
   port: 9090
+  ssl:
+    enabled: true
+    key-store: classpath:keystore.p12
+    key-store-password: bgx123456
+    key-store-type: PKCS12
+    key-alias: bgx
+    enabled-protocols: TLSv1.2,TLSv1.3
+  http2:
+    enabled: true
   # 注释掉 context-path，让 Controller 自己管理路径前缀
   # servlet:
   #   context-path: /api

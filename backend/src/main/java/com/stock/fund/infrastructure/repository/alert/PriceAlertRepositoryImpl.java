@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import com.stock.fund.domain.entity.alert.PriceAlert;
+import com.stock.fund.domain.repository.alert.PriceAlertQuery;
 import com.stock.fund.domain.repository.alert.PriceAlertRepository;
 import com.stock.fund.infrastructure.entity.alert.PriceAlertPO;
 import com.stock.fund.infrastructure.mapper.alert.PriceAlertMapper;
@@ -67,18 +68,42 @@ public class PriceAlertRepositoryImpl implements PriceAlertRepository {
         return alerts;
     }
 
-    // 私方法：将PO转换为领域实体
+    @Override
+    public Optional<PriceAlert> findByUserIdAndSymbolAndSymbolType(Long userId, String symbol, String symbolType) {
+        PriceAlertPO po = priceAlertMapper.findByUserIdAndSymbolAndSymbolType(userId, symbol, symbolType);
+        return po != null ? Optional.of(mapToDomainEntity(po)) : Optional.empty();
+    }
+
+    @Override
+    public List<PriceAlert> findByUserIdWithPage(PriceAlertQuery query) {
+        List<PriceAlertPO> pos = priceAlertMapper.findByUserIdWithPage(
+                query.getUserId(), query.getSymbol(), query.getSymbolType(),
+                query.getAlertType(), query.getStatus(),
+                query.getPage(), query.getSize(), query.getSort());
+        return pos.stream().map(this::mapToDomainEntity).collect(Collectors.toList());
+    }
+
+    @Override
+    public long countByUserId(PriceAlertQuery query) {
+        return priceAlertMapper.countByUserId(
+                query.getUserId(), query.getSymbol(), query.getSymbolType(),
+                query.getAlertType(), query.getStatus());
+    }
+
+    // 将PO转换为领域实体
     private PriceAlert mapToDomainEntity(PriceAlertPO po) {
         PriceAlert alert = new PriceAlert();
         alert.setId(po.getId());
         alert.setUserId(po.getUserId());
-        // alert.setEntityCode(po.getEntityCode());
-        // alert.setEntityType(po.getEntityType());
-        // alert.setEntityName(po.getEntityName());
-        // alert.setAlertType(po.getAlertType());
-        // alert.setThreshold(po.getThreshold());
-        // alert.setCurrentValue(po.getCurrentValue());
-        // alert.setIsActive(po.getIsActive());
+        alert.setSymbol(po.getSymbol());
+        alert.setSymbolType(po.getSymbolType());
+        alert.setSymbolName(po.getSymbolName());
+        alert.setAlertType(po.getAlertType());
+        alert.setTargetPrice(po.getTargetPrice());
+        alert.setTargetChangePercent(po.getTargetChangePercent());
+        alert.setBasePrice(po.getBasePrice());
+        alert.setCurrentValue(po.getCurrentValue());
+        alert.setStatus(po.getStatus());
         alert.setLastTriggered(po.getLastTriggered());
         alert.setDescription(po.getDescription());
         alert.setCreatedAt(po.getCreatedAt());
@@ -86,18 +111,20 @@ public class PriceAlertRepositoryImpl implements PriceAlertRepository {
         return alert;
     }
 
-    // 私有方法：将领域实体转换为PO
+    // 将领域实体转换为PO
     private PriceAlertPO mapToPO(PriceAlert alert) {
         PriceAlertPO po = new PriceAlertPO();
         po.setId(alert.getId());
         po.setUserId(alert.getUserId());
-        // po.setEntityCode(alert.getEntityCode());
-        // po.setEntityType(alert.getEntityType());
-        // po.setEntityName(alert.getEntityName());
-        // po.setAlertType(alert.getAlertType());
-        // po.setThreshold(alert.getThreshold());
-        // po.setCurrentValue(alert.getCurrentValue());
-        // po.setIsActive(alert.getIsActive());
+        po.setSymbol(alert.getSymbol());
+        po.setSymbolType(alert.getSymbolType());
+        po.setSymbolName(alert.getSymbolName());
+        po.setAlertType(alert.getAlertType());
+        po.setTargetPrice(alert.getTargetPrice());
+        po.setTargetChangePercent(alert.getTargetChangePercent());
+        po.setBasePrice(alert.getBasePrice());
+        po.setCurrentValue(alert.getCurrentValue());
+        po.setStatus(alert.getStatus());
         po.setLastTriggered(alert.getLastTriggered());
         po.setDescription(alert.getDescription());
         po.setCreatedAt(alert.getCreatedAt());

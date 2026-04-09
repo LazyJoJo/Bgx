@@ -19,8 +19,9 @@ public class PriceAlert extends AggregateRoot<Long> {
     private String symbolName; // 标的名称
     private String alertType; // 提醒类型：PRICE_ABOVE/PRICE_BELOW/PERCENTAGE_CHANGE
     private Double targetPrice; // 目标价格
-    private Double targetChangePercent; // 目标涨百分比
+    private Double targetChangePercent; // 目标涨跌幅百分比
     private Double currentValue; // 当前值
+    private Double basePrice; // 基准价格（用于涨跌幅计算，通常是昨日收盘价）
     private String status; // 状态：ACTIVE/TRIGGERED/INACTIVE
     private LocalDateTime lastTriggered; // 最后触发时间
     private String description; // 提醒描述
@@ -52,8 +53,12 @@ public class PriceAlert extends AggregateRoot<Long> {
         } else if ("PRICE_BELOW".equals(alertType)) {
             return currentPrice <= targetPrice;
         } else if ("PERCENTAGE_CHANGE".equals(alertType)) {
-            // 涨跌幅逻辑需要根据当前价格计算
-            return false; // 简化处理，实际需要根据历史价格计算
+            // 涨跌幅 = |当前价格 - 基准价格| / 基准价格 * 100%
+            if (basePrice == null || basePrice == 0) {
+                return false;
+            }
+            double changePercent = Math.abs((currentPrice - basePrice) / basePrice * 100);
+            return changePercent >= targetChangePercent;
         }
 
         return false;

@@ -1,14 +1,17 @@
 package com.stock.fund.application.service.riskalert.impl;
 
+import com.stock.fund.application.service.alert.AlertAppService;
 import com.stock.fund.application.service.riskalert.RiskAlertAppService;
-import com.stock.fund.application.service.riskalert.dto.RiskAlertMergeDTO;
+import com.stock.fund.application.service.riskalert.dto.*;
 import com.stock.fund.domain.entity.Fund;
 import com.stock.fund.domain.entity.FundQuote;
 import com.stock.fund.domain.entity.Stock;
 import com.stock.fund.domain.entity.StockQuote;
+import com.stock.fund.domain.entity.alert.PriceAlert;
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
 import com.stock.fund.domain.repository.FundQuoteRepository;
 import com.stock.fund.domain.repository.FundRepository;
+import com.stock.fund.domain.repository.RiskAlertQuery;
 import com.stock.fund.domain.repository.RiskAlertRepository;
 import com.stock.fund.domain.repository.StockQuoteRepository;
 import com.stock.fund.domain.repository.StockRepository;
@@ -21,20 +24,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
     private static final Logger logger = LoggerFactory.getLogger(RiskAlertAppServiceImpl.class);
-
-    // 默认用户ID（后续可扩展为多用户）
-    private static final Long DEFAULT_USER_ID = 1L;
 
     @Autowired
     private RiskAlertRepository riskAlertRepository;
@@ -52,139 +48,158 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
     private FundRepository fundRepository;
 
     @Autowired
+    private AlertAppService alertAppService;
+
+    @Autowired
     private RiskAlertDomainService riskAlertDomainService;
 
     @Override
     @Transactional
-    public void checkAndCreateRiskAlerts() {
-        logger.info("开始风险提醒检测");
-        LocalDateTime now = LocalDateTime.now();
+    public RiskAlert createOrUpdateRiskAlert(RiskAlert riskAlert) {
+        // 根据 userId, symbol, alertDate, timePoint 判断是否存在
+        Optional<RiskAlert> existing = riskAlertRepository
+                .findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                        riskAlert.getUserId(),
+                        riskAlert.getSymbol(),
+                        riskAlert.getAlertDate(),
+                        riskAlert.getTimePoint());
 
-        // 检查股票风险
-        checkStockRiskAlerts(now);
-
-        // 检查基金风险
-        checkFundRiskAlerts(now);
-
-        logger.info("风险提醒检测完成");
-    }
-
-    private void checkStockRiskAlerts(LocalDateTime now) {
-        List<StockQuote> latestQuotes = stockQuoteRepository.findAllLatestQuotes();
-        logger.debug("获取到 {} 条股票最新行情", latestQuotes.size());
-
-        // 获取所有股票的基本信息
-        List<Stock> allStocks = stockRepository.findAll();
-        Map<Long, Stock> stockMap = allStocks.stream()
-                .collect(Collectors.toMap(Stock::getId, s -> s));
-
-        for (StockQuote quote : latestQuotes) {
-            if (quote.getChangePercent() == null) {
-                continue;
-            }
-
-            double changePercent = quote.getChangePercent();
-
-            if (riskAlertDomainService.shouldTriggerAlert(changePercent)) {
-                Stock stock = stockMap.get(quote.getStockId());
-                if (stock == null) {
-                    continue;
-                }
-
-                String symbol = stock.getSymbol();
-                String symbolName = stock.getName();
-                double currentPrice = quote.getClose() != null ? quote.getClose() : 0.0;
-
-                // 计算昨日收盘价
-                double yesterdayClose = calculateYesterdayClose(currentPrice, changePercent);
-
-                // 检查是否当日已存在该股票的风险提醒
-                Optional<RiskAlert> existingAlert = riskAlertRepository.findByUserIdAndSymbolAndDate(
-                        DEFAULT_USER_ID, symbol, now);
-
-                if (existingAlert.isPresent()) {
-                    // 更新已有提醒的触发次数
-                    RiskAlert alert = existingAlert.get();
-                    alert.incrementTriggerCount();
-                    alert.setChangePercent(changePercent);
-                    alert.setCurrentPrice(currentPrice);
-                    alert.setTriggerReason(riskAlertDomainService.generateTriggerReason(
-                            symbol, "STOCK", changePercent, currentPrice));
-                    riskAlertRepository.update(alert);
-                    logger.debug("更新股票风险提醒: symbol={}, triggerCount={}", symbol, alert.getTriggerCount());
-                } else {
-                    // 创建新提醒
-                    RiskAlert alert = new RiskAlert(
-                            DEFAULT_USER_ID, symbol, "STOCK", symbolName,
-                            changePercent, currentPrice, yesterdayClose);
-                    alert.setTriggerReason(riskAlertDomainService.generateTriggerReason(
-                            symbol, "STOCK", changePercent, currentPrice));
-                    riskAlertRepository.save(alert);
-                    logger.info("创建股票风险提醒: symbol={}, changePercent={}", symbol, changePercent);
-                }
-            }
+        if (existing.isPresent()) {
+            RiskAlert existingAlert = existing.get();
+            existingAlert.setHasRisk(riskAlert.getHasRisk());
+            existingAlert.setChangePercent(riskAlert.getChangePercent());
+            existingAlert.setCurrentPrice(riskAlert.getCurrentPrice());
+            existingAlert.setTriggeredAt(LocalDateTime.now());
+            existingAlert.setIsRead(false); // 更新时重置为未读
+            logger.info("更新风险提醒: symbol={}, date={}, timePoint={}",
+                    riskAlert.getSymbol(), riskAlert.getAlertDate(), riskAlert.getTimePoint());
+            return riskAlertRepository.update(existingAlert);
+        } else {
+            riskAlert.setIsRead(false);
+            riskAlert.setTriggeredAt(LocalDateTime.now());
+            logger.info("创建风险提醒: symbol={}, date={}, timePoint={}",
+                    riskAlert.getSymbol(), riskAlert.getAlertDate(), riskAlert.getTimePoint());
+            return riskAlertRepository.save(riskAlert);
         }
     }
 
-    private void checkFundRiskAlerts(LocalDateTime now) {
-        List<FundQuote> latestQuotes = fundQuoteRepository.findAllLatestQuotes();
-        logger.debug("获取到 {} 条基金最新净值", latestQuotes.size());
+    @Override
+    public RiskAlertPageResponse<RiskAlert> queryRiskAlerts(RiskAlertQueryDTO query) {
+        // 构建查询对象
+        RiskAlertQuery queryObj = RiskAlertQuery.builder()
+                .userId(query.getUserId())
+                .startDate(query.getStartDate())
+                .endDate(query.getEndDate())
+                .page(query.getPage())
+                .size(query.getSize())
+                .sort(query.getSort())
+                .build();
 
-        for (FundQuote quote : latestQuotes) {
-            if (quote.getChangePercent() == null) {
-                continue;
-            }
+        List<RiskAlert> records = riskAlertRepository.findByUserIdWithPage(queryObj);
 
-            double changePercent = quote.getChangePercent();
+        long total = riskAlertRepository.countByUserId(queryObj);
 
-            if (riskAlertDomainService.shouldTriggerAlert(changePercent)) {
-                String symbol = quote.getFundCode();
-                String symbolName = quote.getFundName();
-                double currentPrice = quote.getNav() != null ? quote.getNav() : 0.0;
-                double yesterdayClose = quote.getPrevNetValue() != null ? quote.getPrevNetValue() : currentPrice;
+        int pages = (int) Math.ceil((double) total / query.getSize());
 
-                // 检查是否当日已存在该基金的风险提醒
-                Optional<RiskAlert> existingAlert = riskAlertRepository.findByUserIdAndSymbolAndDate(
-                        DEFAULT_USER_ID, symbol, now);
-
-                if (existingAlert.isPresent()) {
-                    // 更新已有提醒的触发次数
-                    RiskAlert alert = existingAlert.get();
-                    alert.incrementTriggerCount();
-                    alert.setChangePercent(changePercent);
-                    alert.setCurrentPrice(currentPrice);
-                    alert.setTriggerReason(riskAlertDomainService.generateTriggerReason(
-                            symbol, "FUND", changePercent, currentPrice));
-                    riskAlertRepository.update(alert);
-                    logger.debug("更新基金风险提醒: symbol={}, triggerCount={}", symbol, alert.getTriggerCount());
-                } else {
-                    // 创建新提醒
-                    RiskAlert alert = new RiskAlert(
-                            DEFAULT_USER_ID, symbol, "FUND", symbolName,
-                            changePercent, currentPrice, yesterdayClose);
-                    alert.setTriggerReason(riskAlertDomainService.generateTriggerReason(
-                            symbol, "FUND", changePercent, currentPrice));
-                    riskAlertRepository.save(alert);
-                    logger.info("创建基金风险提醒: symbol={}, changePercent={}", symbol, changePercent);
-                }
-            }
-        }
+        return RiskAlertPageResponse.<RiskAlert>of(records, total, query.getPage(), query.getSize());
     }
 
-    /**
-     * 根据当前价格和涨跌幅计算昨日收盘价
-     */
-    private double calculateYesterdayClose(double currentPrice, double changePercent) {
-        if (changePercent == 0) {
-            return currentPrice;
+    @Override
+    public List<RiskAlertSummaryDTO> getTodayRiskAlerts(Long userId) {
+        LocalDate today = LocalDate.now();
+        return getRiskAlertsByDateRange(userId, today, today);
+    }
+
+    @Override
+    public List<RiskAlertSummaryDTO> getRiskAlertsByDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
+        List<RiskAlert> alerts = riskAlertRepository.findByUserIdAndDateRange(
+                userId, startDate, endDate);
+
+        // 按日期分组
+        Map<LocalDate, List<RiskAlert>> byDate = alerts.stream()
+                .collect(Collectors.groupingBy(RiskAlert::getAlertDate));
+
+        List<RiskAlertSummaryDTO> result = new ArrayList<>();
+
+        for (Map.Entry<LocalDate, List<RiskAlert>> entry : byDate.entrySet()) {
+            LocalDate date = entry.getKey();
+            List<RiskAlert> dateAlerts = entry.getValue();
+
+            // 按 symbol 分组，每组取时间靠后的那条
+            Map<String, List<RiskAlert>> bySymbol = dateAlerts.stream()
+                    .collect(Collectors.groupingBy(RiskAlert::getSymbol));
+
+            List<RiskAlertSummaryDTO.RiskAlertItemDTO> items = new ArrayList<>();
+            int unreadCount = 0;
+
+            for (Map.Entry<String, List<RiskAlert>> symbolEntry : bySymbol.entrySet()) {
+                List<RiskAlert> symbolAlerts = symbolEntry.getValue();
+                // 按时间倒序，取第一条（时间最靠后的）
+                symbolAlerts.sort(Comparator.comparing(RiskAlert::getTimePoint).reversed());
+                RiskAlert latest = symbolAlerts.get(0);
+
+                RiskAlertSummaryDTO.RiskAlertItemDTO item = RiskAlertSummaryDTO.RiskAlertItemDTO.builder()
+                        .id(latest.getId())
+                        .symbol(latest.getSymbol())
+                        .symbolType(latest.getSymbolType())
+                        .symbolName(latest.getSymbolName())
+                        .timePoint(latest.getTimePoint())
+                        .hasRisk(latest.getHasRisk())
+                        .changePercent(latest.getChangePercent())
+                        .currentPrice(latest.getCurrentPrice())
+                        .yesterdayClose(latest.getYesterdayClose())
+                        .isRead(latest.getIsRead())
+                        .triggeredAt(latest.getTriggeredAt() != null ? latest.getTriggeredAt().toString() : null)
+                        .build();
+                items.add(item);
+
+                if (!Boolean.TRUE.equals(latest.getIsRead())) {
+                    unreadCount++;
+                }
+            }
+
+            RiskAlertSummaryDTO summary = RiskAlertSummaryDTO.builder()
+                    .alertDate(date)
+                    .totalCount(items.size())
+                    .unreadCount(unreadCount)
+                    .items(items)
+                    .build();
+            result.add(summary);
         }
-        // yesterdayClose = currentPrice / (1 + changePercent/100)
-        return currentPrice / (1 + changePercent / 100);
+
+        // 按日期倒序排列
+        result.sort(Comparator.comparing(RiskAlertSummaryDTO::getAlertDate).reversed());
+
+        return result;
     }
 
     @Override
     public long getUnreadCount(Long userId) {
         return riskAlertRepository.countUnreadByUserId(userId);
+    }
+
+    @Override
+    public int getTodayRiskAlertCount(Long userId) {
+        LocalDate today = LocalDate.now();
+        List<RiskAlert> todayAlerts = riskAlertRepository.findByUserIdAndDateRange(
+                userId, today, today);
+
+        // 按 symbol 去重，一个股票/基金算一条
+        Set<String> symbols = todayAlerts.stream()
+                .map(RiskAlert::getSymbol)
+                .collect(Collectors.toSet());
+
+        return symbols.size();
+    }
+
+    @Override
+    @Transactional
+    public void markAsRead(Long riskAlertId) {
+        riskAlertRepository.findById(riskAlertId).ifPresent(alert -> {
+            alert.markAsRead();
+            riskAlertRepository.update(alert);
+            logger.info("标记风险提醒为已读: id={}", riskAlertId);
+        });
     }
 
     @Override
@@ -195,17 +210,62 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
     }
 
     @Override
+    public Optional<RiskAlert> getById(Long id) {
+        return riskAlertRepository.findById(id);
+    }
+
+    @Override
+    @Transactional
+    public void checkAndCreateRiskAlerts() {
+        logger.info("开始风险提醒检测");
+        LocalDateTime now = LocalDateTime.now();
+
+        // 检查所有用户的价格提醒
+        List<PriceAlert> activeAlerts = alertAppService.getUserActiveAlerts(1L); // 默认用户
+
+        for (PriceAlert alert : activeAlerts) {
+            try {
+                // 获取当前价格
+                Double currentPrice = getCurrentPrice(alert.getSymbol(), alert.getSymbolType());
+                if (currentPrice == null) {
+                    continue;
+                }
+
+                // 获取昨日收盘价
+                Double yesterdayClose = getYesterdayClose(alert.getSymbol(), alert.getSymbolType());
+                if (yesterdayClose == null) {
+                    yesterdayClose = currentPrice; // 估算
+                }
+
+                // 处理风险
+                processAlertTriggeredRisk(
+                        alert.getUserId(),
+                        alert.getSymbol(),
+                        alert.getSymbolType(),
+                        currentPrice,
+                        yesterdayClose
+                );
+            } catch (Exception e) {
+                logger.error("检查提醒失败: symbol={}, type={}",
+                        alert.getSymbol(), alert.getSymbolType(), e);
+            }
+        }
+
+        logger.info("风险提醒检测完成");
+    }
+
+    @Override
     public List<RiskAlertMergeDTO> getMergedRiskAlerts(Long userId, Long cursor, int limit) {
         LocalDateTime cursorTime = cursor != null ?
                 LocalDateTime.ofEpochSecond(cursor / 1000, 0, java.time.ZoneOffset.ofHours(8)) :
                 LocalDateTime.now();
 
-        List<RiskAlert> alerts = riskAlertRepository.findByUserId(userId, cursorTime, limit);
+        List<RiskAlert> alerts = riskAlertRepository.findByUserId(userId, cursorTime.toLocalDate(), limit);
 
         // 按 symbol + date 分组
         Map<String, List<RiskAlert>> grouped = alerts.stream()
                 .collect(Collectors.groupingBy(alert ->
-                        alert.getSymbol() + "_" + alert.getTriggeredAt().toLocalDate()));
+                        alert.getSymbol() + "_" + alert.getAlertDate()));
 
         List<RiskAlertMergeDTO> result = new ArrayList<>();
 
@@ -216,7 +276,8 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
             groupAlerts.sort(Comparator.comparing(RiskAlert::getTriggeredAt).reversed());
 
             RiskAlert latest = groupAlerts.get(0);
-            RiskAlert first = groupAlerts.get(groupAlerts.size() - 1); // 最早触发的那条
+            // 按时间点倒序（14:30 > 11:30）
+            groupAlerts.sort(Comparator.comparing(RiskAlert::getTimePoint).reversed());
 
             // 计算最大涨跌幅
             double maxChangePercent = groupAlerts.stream()
@@ -231,7 +292,7 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
                             alert.getChangePercent(),
                             alert.getCurrentPrice(),
                             alert.getTriggeredAt(),
-                            alert.getTriggerReason()))
+                            null))
                     .collect(Collectors.toList());
 
             result.add(new RiskAlertMergeDTO(
@@ -239,7 +300,7 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
                     latest.getSymbol(),
                     latest.getSymbolType(),
                     latest.getSymbolName(),
-                    latest.getTriggeredAt().toLocalDate(),
+                    latest.getAlertDate(),
                     groupAlerts.size(),
                     maxChangePercent,
                     latest.getChangePercent(),
@@ -260,5 +321,118 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
     public void deleteById(Long id) {
         riskAlertRepository.deleteById(id);
         logger.info("删除风险提醒: id={}", id);
+    }
+
+    private Double getCurrentPrice(String symbol, String symbolType) {
+        try {
+            if ("STOCK".equals(symbolType)) {
+                var stocks = stockRepository.findAll();
+                var stockMap = stocks.stream().collect(Collectors.toMap(Stock::getSymbol, s -> s));
+                var stock = stockMap.get(symbol);
+                if (stock != null) {
+                    var quotes = stockQuoteRepository.findAllLatestQuotes();
+                    var quote = quotes.stream()
+                            .filter(q -> stock.getId().equals(q.getStockId()))
+                            .findFirst()
+                            .orElse(null);
+                    return quote != null ? quote.getClose() : null;
+                }
+            } else if ("FUND".equals(symbolType)) {
+                var quotes = fundQuoteRepository.findAllLatestQuotes();
+                var quote = quotes.stream()
+                        .filter(q -> symbol.equals(q.getFundCode()))
+                        .findFirst()
+                        .orElse(null);
+                return quote != null ? quote.getNav() : null;
+            }
+        } catch (Exception e) {
+            logger.warn("获取当前价格失败: symbol={}, type={}", symbol, symbolType, e);
+        }
+        return null;
+    }
+
+    private Double getYesterdayClose(String symbol, String symbolType) {
+        try {
+            if ("STOCK".equals(symbolType)) {
+                var stocks = stockRepository.findAll();
+                var stockMap = stocks.stream().collect(Collectors.toMap(Stock::getSymbol, s -> s));
+                var stock = stockMap.get(symbol);
+                if (stock != null) {
+                    var quotes = stockQuoteRepository.findAllLatestQuotes();
+                    var quote = quotes.stream()
+                            .filter(q -> stock.getId().equals(q.getStockId()))
+                            .findFirst()
+                            .orElse(null);
+                    return quote != null ? quote.getClose() : null; // 简化处理
+                }
+            } else if ("FUND".equals(symbolType)) {
+                var quotes = fundQuoteRepository.findAllLatestQuotes();
+                var quote = quotes.stream()
+                        .filter(q -> symbol.equals(q.getFundCode()))
+                        .findFirst()
+                        .orElse(null);
+                return quote != null ? quote.getPrevNetValue() : null;
+            }
+        } catch (Exception e) {
+            logger.warn("获取昨日收盘价失败: symbol={}, type={}", symbol, symbolType, e);
+        }
+        return null;
+    }
+
+    @Override
+    @Transactional
+    public void processAlertTriggeredRisk(Long userId, String symbol, String symbolType,
+                                          Double currentPrice, Double yesterdayClose) {
+        logger.info("处理价格提醒触发的风险: userId={}, symbol={}, symbolType={}, currentPrice={}",
+                userId, symbol, symbolType, currentPrice);
+
+        // 计算涨跌幅
+        double changePercent = 0.0;
+        if (yesterdayClose != null && yesterdayClose != 0) {
+            changePercent = (currentPrice - yesterdayClose) / yesterdayClose * 100;
+        }
+
+        // 判断是否有风险（涨跌幅超过阈值，这里简化处理，实际应该根据用户设置的阈值判断）
+        boolean hasRisk = riskAlertDomainService.shouldTriggerAlert(changePercent);
+
+        // 确定时间点
+        LocalDateTime now = LocalDateTime.now();
+        String timePoint = now.getHour() < 12 ? "11:30" : "14:30";
+
+        // 创建风险记录
+        RiskAlert riskAlert = new RiskAlert();
+        riskAlert.setUserId(userId);
+        riskAlert.setSymbol(symbol);
+        riskAlert.setSymbolType(symbolType);
+        riskAlert.setAlertDate(now.toLocalDate());
+        riskAlert.setTimePoint(timePoint);
+        riskAlert.setHasRisk(hasRisk);
+        riskAlert.setChangePercent(changePercent);
+        riskAlert.setCurrentPrice(currentPrice);
+        riskAlert.setYesterdayClose(yesterdayClose);
+
+        // 获取标的名称
+        String symbolName = fetchSymbolName(symbol, symbolType);
+        riskAlert.setSymbolName(symbolName);
+
+        // 只有有风险时才创建记录
+        if (hasRisk) {
+            createOrUpdateRiskAlert(riskAlert);
+        }
+    }
+
+    private String fetchSymbolName(String symbol, String symbolType) {
+        try {
+            if ("STOCK".equals(symbolType)) {
+                var stock = stockRepository.findBySymbol(symbol);
+                return stock.map(Stock::getName).orElse(symbol);
+            } else if ("FUND".equals(symbolType)) {
+                var fund = fundRepository.findByFundCode(symbol);
+                return fund.map(Fund::getName).orElse(symbol);
+            }
+        } catch (Exception e) {
+            logger.warn("获取标的名称失败: symbol={}, type={}", symbol, symbolType, e);
+        }
+        return symbol;
     }
 }
