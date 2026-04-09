@@ -165,13 +165,7 @@ public class AlertAppServiceImpl implements AlertAppService {
 
         int pages = (int) Math.ceil((double) total / query.getSize());
 
-        return AlertPageResponse.<PriceAlert>builder()
-                .records(records)
-                .total(total)
-                .page(query.getPage())
-                .size(query.getSize())
-                .pages(pages)
-                .build();
+        return AlertPageResponse.<PriceAlert>of(records, total, query.getPage(), query.getSize());
     }
 
     @Override

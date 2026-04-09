@@ -75,6 +75,8 @@ data:
       fund-quote-cron: "0 */15 9-15 * * MON-FRI"
       daily-collection-cron: "0 0 16 * * MON-FRI"
       alert-check-cron: "0 */1 * * * ?"
+      risk-alert-1130-cron: "0 30 11 * * MON-FRI"
+      risk-alert-1430-cron: "0 30 14 * * MON-FRI"
     retry:
       max-attempts: 3
       delay-ms: 1000

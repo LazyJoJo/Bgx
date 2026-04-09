@@ -29,6 +29,12 @@ public class SchedulerConfig {
     // 提醒检查定时任务
     private String alertCheckCron = "0 */1 * * * ?";
 
+    // 风险提醒 - 上午11:30（工作日）
+    private String riskAlert1130Cron = "0 30 11 * * MON-FRI";
+
+    // 风险提醒 - 下午14:30（工作日）
+    private String riskAlert1430Cron = "0 30 14 * * MON-FRI";
+
     // Getters and Setters
     public String getStockBasicCron() {
         return stockBasicCron;
@@ -76,5 +82,21 @@ public class SchedulerConfig {
 
     public void setAlertCheckCron(String alertCheckCron) {
         this.alertCheckCron = alertCheckCron;
+    }
+
+    public String getRiskAlert1130Cron() {
+        return riskAlert1130Cron;
+    }
+
+    public void setRiskAlert1130Cron(String riskAlert1130Cron) {
+        this.riskAlert1130Cron = riskAlert1130Cron;
+    }
+
+    public String getRiskAlert1430Cron() {
+        return riskAlert1430Cron;
+    }
+
+    public void setRiskAlert1430Cron(String riskAlert1430Cron) {
+        this.riskAlert1430Cron = riskAlert1430Cron;
     }
 }
