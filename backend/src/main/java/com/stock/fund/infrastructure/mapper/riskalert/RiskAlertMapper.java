@@ -13,6 +13,11 @@ import java.util.List;
 public interface RiskAlertMapper extends BaseMapper<RiskAlertPO> {
 
     /**
+     * 自定义根据ID查询，避免BaseMapper的selectById查询不存在的列
+     */
+    RiskAlertPO customFindById(Long id);
+
+    /**
      * 根据用户ID查询风险提醒（按时间倒序，带游标）
      */
     List<RiskAlertPO> findByUserIdWithCursor(@Param("userId") Long userId,

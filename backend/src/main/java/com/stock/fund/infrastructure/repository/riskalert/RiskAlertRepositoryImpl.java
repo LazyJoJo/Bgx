@@ -23,7 +23,7 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
 
     @Override
     public Optional<RiskAlert> findById(Long id) {
-        RiskAlertPO po = riskAlertMapper.selectById(id);
+        RiskAlertPO po = riskAlertMapper.customFindById(id);
         return po != null ? Optional.of(mapToDomain(po)) : Optional.empty();
     }
 

@@ -96,9 +96,9 @@ CREATE TABLE IF NOT EXISTS price_alert (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,                  -- 用户ID
     entity_code VARCHAR(20) NOT NULL,         -- 实体代码或基金代码
-    entity_type VARCHAR(10) NOT NULL,         -- 实体类型：stock/fund
+    entity_type VARCHAR(20) NOT NULL,         -- 实体类型：STOCK/FUND
     entity_name VARCHAR(100),                 -- 实体名称
-    alert_type VARCHAR(10) NOT NULL,          -- 提醒类型：上涨/下跌
+    alert_type VARCHAR(20) NOT NULL,          -- 提醒类型：PRICE_ABOVE/PRICE_BELOW/PERCENTAGE_CHANGE
     threshold DECIMAL(10,4) NOT NULL,         --触发阈值
     current_value DECIMAL(10,4),             -- 当前值
     is_active BOOLEAN DEFAULT TRUE,           -- 是否激活

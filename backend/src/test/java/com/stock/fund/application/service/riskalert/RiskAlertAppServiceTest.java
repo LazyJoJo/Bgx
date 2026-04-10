@@ -5,6 +5,7 @@ import com.stock.fund.application.service.riskalert.impl.RiskAlertAppServiceImpl
 import com.stock.fund.application.service.riskalert.dto.RiskAlertPageResponse;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertQueryDTO;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertSummaryDTO;
+import com.stock.fund.domain.entity.alert.PriceAlert;
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
 import com.stock.fund.domain.repository.RiskAlertQuery;
 import com.stock.fund.domain.repository.RiskAlertRepository;
@@ -18,6 +19,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -61,9 +63,9 @@ class RiskAlertAppServiceTest {
         testRiskAlert.setAlertDate(LocalDate.now());
         testRiskAlert.setTimePoint("14:30");
         testRiskAlert.setHasRisk(true);
-        testRiskAlert.setChangePercent(5.5);
-        testRiskAlert.setCurrentPrice(12.50);
-        testRiskAlert.setYesterdayClose(11.85);
+        testRiskAlert.setChangePercent(new BigDecimal("5.50"));
+        testRiskAlert.setCurrentPrice(new BigDecimal("12.50"));
+        testRiskAlert.setYesterdayClose(new BigDecimal("11.85"));
         testRiskAlert.setIsRead(false);
         testRiskAlert.setTriggeredAt(LocalDateTime.now());
     }
@@ -370,35 +372,98 @@ class RiskAlertAppServiceTest {
         List<RiskAlertMergeDTO> result = riskAlertAppService.getMergedRiskAlerts(1L, null, 10);
 
         // then
-        assertThat(result.get(0).maxChangePercent()).isEqualTo(5.0);
+        assertThat(result.get(0).maxChangePercent()).isEqualByComparingTo(new BigDecimal("5.0"));
     }
 
     // ==================== 处理价格提醒触发的风险测试 ====================
 
+    /**
+     * 创建价格提醒的辅助方法
+     */
+    private PriceAlert createPriceAlert(String symbol, String alertType, Double targetPrice, Double targetChangePercent, Double basePrice) {
+        PriceAlert alert = new PriceAlert();
+        alert.setId(1L);
+        alert.setUserId(1L);
+        alert.setSymbol(symbol);
+        alert.setSymbolType("STOCK");
+        alert.setSymbolName("测试股票");
+        alert.setAlertType(alertType);
+        alert.setTargetPrice(targetPrice);
+        alert.setTargetChangePercent(targetChangePercent);
+        alert.setBasePrice(basePrice);
+        alert.setStatus("ACTIVE");
+        return alert;
+    }
+
     @Test
-    @DisplayName("处理价格提醒触发的风险 - 涨跌幅超过阈值应创建风险记录")
-    void processAlertTriggeredRisk_exceedThreshold_shouldCreateAlert() {
-        // given: 涨跌幅5%超过阈值
-        when(riskAlertDomainService.shouldTriggerAlert(anyDouble())).thenReturn(true);
+    @DisplayName("处理价格提醒触发的风险 - 价格超过目标价应创建风险记录")
+    void processAlertTriggeredRisk_priceAboveTarget_shouldCreateAlert() {
+        // given: 设置PRICE_ABOVE提醒，目标价11.0，当前价格11.5（超过目标价）
+        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 11.0, null, null);
         when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
                 any(), any(), any(), any())).thenReturn(Optional.empty());
         when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
 
-        // when: 下午时间触发
-        riskAlertAppService.processAlertTriggeredRisk(1L, "000001", "STOCK", 11.50, 10.95);
+        // when: 当前价格11.5超过目标价11.0
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.50"), new BigDecimal("10.95"), "14:30");
 
-        // then
+        // then: 应保存风险记录
+        verify(riskAlertRepository).save(any(RiskAlert.class));
+    }
+
+    @Test
+    @DisplayName("处理价格提醒触发的风险 - 价格未超过目标价不创建记录")
+    void processAlertTriggeredRisk_priceBelowTarget_shouldNotCreate() {
+        // given: 设置PRICE_ABOVE提醒，目标价12.0，当前价格11.5（未超过目标价）
+        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 12.0, null, null);
+
+        // when: 当前价格11.5未超过目标价12.0
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.50"), new BigDecimal("10.95"), "14:30");
+
+        // then: 不应保存
+        verify(riskAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("处理价格提醒触发的风险 - 价格低于目标价应创建风险记录")
+    void processAlertTriggeredRisk_priceBelowTarget_shouldCreateAlert() {
+        // given: 设置PRICE_BELOW提醒，目标价11.0，当前价格10.5（低于目标价）
+        PriceAlert alert = createPriceAlert("000001", "PRICE_BELOW", 11.0, null, null);
+        when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when: 当前价格10.5低于目标价11.0
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("10.50"), new BigDecimal("10.95"), "14:30");
+
+        // then: 应保存风险记录
+        verify(riskAlertRepository).save(any(RiskAlert.class));
+    }
+
+    @Test
+    @DisplayName("处理价格提醒触发的风险 - 涨跌幅超过阈值应创建风险记录")
+    void processAlertTriggeredRisk_percentageChangeExceed_shouldCreateAlert() {
+        // given: 设置PERCENTAGE_CHANGE提醒，阈值5%，基准价10.95，当前价格11.50（涨幅5.02%超过阈值）
+        PriceAlert alert = createPriceAlert("000001", "PERCENTAGE_CHANGE", null, 5.0, 10.95);
+        when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when: 涨跌幅约5.02%超过阈值5%
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.50"), new BigDecimal("10.95"), "14:30");
+
+        // then: 应保存风险记录
         verify(riskAlertRepository).save(any(RiskAlert.class));
     }
 
     @Test
     @DisplayName("处理价格提醒触发的风险 - 涨跌幅未超阈值不创建记录")
-    void processAlertTriggeredRisk_belowThreshold_shouldNotCreate() {
-        // given: 涨跌幅2%未超过阈值
-        when(riskAlertDomainService.shouldTriggerAlert(anyDouble())).thenReturn(false);
+    void processAlertTriggeredRisk_percentageChangeBelow_shouldNotCreate() {
+        // given: 设置PERCENTAGE_CHANGE提醒，阈值5%，基准价10.95，当前价格11.40（涨幅4.1%未超过阈值）
+        PriceAlert alert = createPriceAlert("000001", "PERCENTAGE_CHANGE", null, 5.0, 10.95);
 
-        // when
-        riskAlertAppService.processAlertTriggeredRisk(1L, "000001", "STOCK", 11.18, 10.95);
+        // when: 涨跌幅约4.1%未超过阈值5%
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.40"), new BigDecimal("10.95"), "14:30");
 
         // then: 不应保存
         verify(riskAlertRepository, never()).save(any());
@@ -408,17 +473,35 @@ class RiskAlertAppServiceTest {
     @DisplayName("处理价格提醒触发的风险 - 下午时间点应为14:30")
     void processAlertTriggeredRisk_afternoon_shouldSet1430TimePoint() {
         // given
-        when(riskAlertDomainService.shouldTriggerAlert(anyDouble())).thenReturn(true);
+        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 11.0, null, null);
         when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
                 any(), any(), any(), any())).thenReturn(Optional.empty());
         when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
 
-        // when
-        riskAlertAppService.processAlertTriggeredRisk(1L, "000001", "STOCK", 11.50, 10.95);
+        // when: 显式传入时间点 14:30
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.50"), new BigDecimal("10.95"), "14:30");
 
         // then: 验证保存的风险提醒时间点为14:30
-        verify(riskAlertRepository).save(argThat(alert ->
-            "14:30".equals(alert.getTimePoint())
+        verify(riskAlertRepository).save(argThat(riskAlert ->
+            "14:30".equals(riskAlert.getTimePoint())
+        ));
+    }
+
+    @Test
+    @DisplayName("处理价格提醒触发的风险 - 上午时间点应为11:30")
+    void processAlertTriggeredRisk_morning_shouldSet1130TimePoint() {
+        // given
+        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 11.0, null, null);
+        when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when: 显式传入时间点 11:30
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.50"), new BigDecimal("10.95"), "11:30");
+
+        // then: 验证保存的风险提醒时间点为11:30
+        verify(riskAlertRepository).save(argThat(riskAlert ->
+            "11:30".equals(riskAlert.getTimePoint())
         ));
     }
 
@@ -458,9 +541,9 @@ class RiskAlertAppServiceTest {
         alert.setAlertDate(LocalDate.now());
         alert.setTimePoint(timePoint);
         alert.setHasRisk(true);
-        alert.setChangePercent(changePercent);
-        alert.setCurrentPrice(12.0);
-        alert.setYesterdayClose(11.4);
+        alert.setChangePercent(BigDecimal.valueOf(changePercent));
+        alert.setCurrentPrice(BigDecimal.valueOf(12.0));
+        alert.setYesterdayClose(BigDecimal.valueOf(11.4));
         alert.setIsRead(false);
         alert.setTriggeredAt(LocalDateTime.now());
         return alert;

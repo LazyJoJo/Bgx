@@ -158,6 +158,19 @@ public class DataCollectionTargetController {
         }
     }
 
+    @GetMapping("/search")
+    @Operation(summary = "搜索采集目标", description = "根据关键词搜索采集目标，支持按类型过滤，搜索代码或名称")
+    public ApiResponse<List<DataCollectionTarget>> searchTargets(
+            @Parameter(description = "标的类型", example = "STOCK") @RequestParam(required = false) String type,
+            @Parameter(description = "搜索关键词", example = "平安") @RequestParam String keyword) {
+        try {
+            List<DataCollectionTarget> targets = dataCollectionTargetAppService.searchTargets(type, keyword);
+            return ApiResponse.success(targets);
+        } catch (Exception e) {
+            return ApiResponse.error("搜索采集目标失败: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/{id}/activate")
     @Operation(summary = "激活采集目标 (按 ID)", description = "将指定 ID 的采集目标设置为激活状态")
     public ApiResponse<String> activateTarget(@PathVariable Long id) {

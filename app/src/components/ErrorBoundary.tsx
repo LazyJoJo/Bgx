@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { Component, ErrorInfo, ReactNode } from 'react'
 import { Result, Button, Card } from 'antd'
 
 interface Props {
@@ -75,7 +75,7 @@ class ErrorBoundary extends Component<Props, State> {
                 </Button>
               ]}
             />
-            {process.env.NODE_ENV === 'development' && error && (
+            {import.meta.env.MODE === 'development' && error && (
               <div style={{
                 marginTop: 24,
                 textAlign: 'left',

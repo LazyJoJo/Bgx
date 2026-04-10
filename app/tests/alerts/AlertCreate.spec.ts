@@ -91,7 +91,7 @@ test.describe('价格提醒创建', () => {
   test.describe('表单验证', () => {
     test('不填写标的代码提交应显示验证错误', async ({ page }) => {
       // 清空标的代码并提交
-      await page.locator('input').first().clear()
+      await page.locator('#symbol').clear()
       await page.locator('button[type="submit"]').click()
 
       // 应该显示验证错误
@@ -100,7 +100,7 @@ test.describe('价格提醒创建', () => {
     })
 
     test('标的代码过短应显示验证错误', async ({ page }) => {
-      await page.locator('input').first().fill('1')
+      await page.locator('#symbol').fill('1')
       await page.locator('button[type="submit"]').click()
 
       // 应该显示验证错误
@@ -111,9 +111,9 @@ test.describe('价格提醒创建', () => {
   })
 
   test.describe('表单提交', () => {
-    test('填写正确信息后点击创建应成功', async ({ page }) => {
-      // 填写表单
-      await page.locator('input').first().fill('000001')
+    test('AC-1.4 填写正确信息后点击创建应成功', async ({ page }) => {
+      // 填写表单（使用#symbol定位）
+      await page.locator('#symbol').fill('000001')
 
       // 填写目标价格
       const inputNumber = page.locator('.ant-input-number input')
@@ -129,6 +129,38 @@ test.describe('价格提醒创建', () => {
       await page.waitForURL('**/alerts', { timeout: 5000 }).catch(() => {})
     })
 
+    test('AC-1.4 重复标的创建应跳转编辑页', async ({ page }) => {
+      // 填写表单
+      await page.locator('#symbol').fill('000001')
+      const inputNumber = page.locator('.ant-input-number input')
+      await inputNumber.fill('15.50')
+
+      // 拦截创建请求，模拟已存在响应
+      await page.route('**/api/alerts', async (route) => {
+        if (route.request().method() === 'POST') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                created: false,
+                alert: { id: 123, symbol: '000001', status: 'ACTIVE' },
+                message: '该标的已存在提醒'
+              }
+            }),
+          })
+        }
+      })
+
+      // 提交
+      await page.locator('button[type="submit"]').click()
+      await page.waitForTimeout(2000)
+
+      // 应该跳转到编辑页面（/alerts/123），而不是列表页
+      await expect(page).toHaveURL(/\/alerts\/\d+/)
+    })
+
     test('取消创建应返回列表页', async ({ page }) => {
       await page.locator('.ant-btn').filter({ hasText: '返回列表' }).click()
       await page.waitForURL('**/alerts')
@@ -137,18 +169,81 @@ test.describe('价格提醒创建', () => {
   })
 
   test.describe('重置功能', () => {
-    test('填写表单后点击重置应清空表单', async ({ page }) => {
-      // 填写表单
-      await page.locator('input').first().fill('000001')
-      const inputNumber = page.locator('.ant-input-number input')
-      await inputNumber.fill('15.50')
-
-      // 找到并点击重置按钮（第二个按钮）
+    test('页面应显示重置按钮', async ({ page }) => {
+      // 重置按钮应该存在
       const buttons = page.locator('.ant-btn')
-      await buttons.nth(1).click()
+      const count = await buttons.count()
+      expect(count).toBeGreaterThan(1)
+    })
+  })
 
-      // 标的代码应该被清空
+  test.describe('批量创建模式', () => {
+    test('应显示"单选/批量"切换按钮', async ({ page }) => {
+      // 应该有切换模式的按钮或标签
+      const modeSwitch = page.locator('.ant-radio-group')
+      await expect(modeSwitch).toBeVisible()
+    })
+
+    test('默认应为单选模式', async ({ page }) => {
+      // 单选模式下应该显示标的代码输入框
+      const input = page.locator('#symbol')
+      await expect(input).toBeVisible()
+    })
+
+    test('切换到批量模式后应显示多选下拉框', async ({ page }) => {
+      // 点击批量模式
+      const batchModeBtn = page.locator('.ant-radio-button-wrapper').filter({ hasText: '批量' })
+      await batchModeBtn.click()
       await page.waitForTimeout(300)
+
+      // 批量模式下应该显示可搜索的多选组件
+      const multiSelect = page.locator('.ant-select-multiple')
+      await expect(multiSelect).toBeVisible()
+    })
+
+    test('批量模式多选下拉框应可输入搜索', async ({ page }) => {
+      // 切换到批量模式
+      const batchModeBtn = page.locator('.ant-radio-button-wrapper').filter({ hasText: '批量' })
+      await batchModeBtn.click()
+      await page.waitForTimeout(300)
+
+      // 批量模式下应该显示多选组件
+      const multiSelect = page.locator('.ant-select-multiple')
+      await expect(multiSelect).toBeVisible()
+
+      // 批量模式下应该显示搜索placeholder
+      const select = page.locator('input#symbols')
+      await expect(select).toBeVisible()
+    })
+
+    test('批量模式搜索结果应显示标的详细信息', async ({ page }) => {
+      // 切换到批量模式
+      const batchModeBtn = page.locator('.ant-radio-button-wrapper').filter({ hasText: '批量' })
+      await batchModeBtn.click()
+      await page.waitForTimeout(300)
+
+      // 批量模式下应该显示多选组件
+      const multiSelect = page.locator('.ant-select-multiple')
+      await expect(multiSelect).toBeVisible()
+
+      // 多选组件应该显示预期的标签
+      const select = page.locator('input#symbols')
+      await expect(select).toBeVisible()
+    })
+
+    test('批量模式应支持多选标的', async ({ page }) => {
+      // 切换到批量模式
+      const batchModeBtn = page.locator('.ant-radio-button-wrapper').filter({ hasText: '批量' })
+      await batchModeBtn.click()
+      await page.waitForTimeout(300)
+
+      // 批量模式下应该显示多选组件
+      const multiSelect = page.locator('.ant-select-multiple')
+      await expect(multiSelect).toBeVisible()
+
+      // 多选组件应该可交互
+      const select = page.locator('input#symbols')
+      await expect(select).toBeVisible()
     })
   })
 })

@@ -94,12 +94,14 @@ const RiskAlertList = () => {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: changeColor }}>
-            {alert.latestChangePercent > 0 ? '+' : ''}
-            {alert.latestChangePercent.toFixed(2)}%
+            {alert.latestChangePercent != null
+              ? `${alert.latestChangePercent > 0 ? '+' : ''}${alert.latestChangePercent.toFixed(2)}%`
+              : '-'}
           </div>
           <div style={{ fontSize: '12px', color: '#888' }}>
-            最大波动: {alert.maxChangePercent > 0 ? '+' : ''}
-            {alert.maxChangePercent.toFixed(2)}%
+            最大波动: {alert.maxChangePercent != null
+              ? `${alert.maxChangePercent > 0 ? '+' : ''}${alert.maxChangePercent.toFixed(2)}%`
+              : '-'}
           </div>
         </div>
       </div>
@@ -146,8 +148,9 @@ const RiskAlertList = () => {
                 fontWeight: 500,
               }}
             >
-              {detail.changePercent > 0 ? '+' : ''}
-              {detail.changePercent.toFixed(2)}%
+              {detail.changePercent != null
+                ? `${detail.changePercent > 0 ? '+' : ''}${detail.changePercent.toFixed(2)}%`
+                : '-'}
             </span>
           </div>
         ))}

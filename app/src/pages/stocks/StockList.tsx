@@ -26,7 +26,7 @@ const StockList = () => {
       title: '当前价格',
       dataIndex: 'currentPrice',
       key: 'currentPrice',
-      render: (price: number) => `¥${price.toFixed(2)}`
+      render: (price: number) => price != null ? `¥${price.toFixed(2)}` : '-'
     },
     {
       title: '涨跌额',
@@ -34,7 +34,7 @@ const StockList = () => {
       key: 'change',
       render: (change: number) => (
         <span style={{ color: change >= 0 ? '#f5222d' : '#52c41a' }}>
-          {change >= 0 ? '+' : ''}{change.toFixed(2)}
+          {change != null ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}` : '-'}
         </span>
       )
     },
@@ -44,7 +44,7 @@ const StockList = () => {
       key: 'changePercent',
       render: (percent: number) => (
         <Tag color={percent >= 0 ? 'red' : 'green'}>
-          {percent >= 0 ? '+' : ''}{percent.toFixed(2)}%
+          {percent != null ? `${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%` : '-'}
         </Tag>
       )
     },
@@ -52,7 +52,7 @@ const StockList = () => {
       title: '成交量',
       dataIndex: 'volume',
       key: 'volume',
-      render: (volume: number) => volume.toLocaleString()
+      render: (volume: number) => volume != null ? volume.toLocaleString() : '-'
     }
   ]
 

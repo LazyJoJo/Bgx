@@ -2,10 +2,16 @@ package com.stock.fund.domain.entity;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
  * 基金领域实体
+ * <p>
+ * 数值精度规范:
+ * - nav (最新净值): 4位小数
+ * - fundSize (基金规模): 2位小数
+ * - dayGrowth/weekGrowth/monthGrowth/yearGrowth (增长率): 2位小数
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -15,12 +21,12 @@ public class Fund extends AggregateRoot<Long> {
     private String type;          // 基金类型
     private String manager;       // 基金经理
     private LocalDate establishmentDate; // 成立日期
-    private Double fundSize;      // 基金规模
-    private Double nav;           // 最新净值
-    private Double dayGrowth;     // 日增长率
-    private Double weekGrowth;    // 周增长率
-    private Double monthGrowth;   // 月增长率
-    private Double yearGrowth;    // 年增长率
+    private BigDecimal fundSize;  // 基金规模 (2位小数)
+    private BigDecimal nav;       // 最新净值 (4位小数)
+    private BigDecimal dayGrowth;     // 日增长率 (2位小数)
+    private BigDecimal weekGrowth;    // 周增长率 (2位小数)
+    private BigDecimal monthGrowth;   // 月增长率 (2位小数)
+    private BigDecimal yearGrowth;    // 年增长率 (2位小数)
 
     // 构造函数
     public Fund() {}

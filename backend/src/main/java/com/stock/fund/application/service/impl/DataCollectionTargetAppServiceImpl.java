@@ -98,6 +98,14 @@ public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetA
     }
 
     @Override
+    public List<DataCollectionTarget> searchTargets(String type, String keyword) {
+        if (type == null || type.isEmpty()) {
+            return dataCollectionTargetRepository.search(keyword);
+        }
+        return dataCollectionTargetRepository.searchByType(type, keyword);
+    }
+
+    @Override
     public void activateTarget(Long id) {
         DataCollectionTarget target = getTargetById(id);
         target.activate();

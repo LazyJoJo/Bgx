@@ -29,7 +29,7 @@ public class RiskAlertScheduler {
     public void triggerRiskAlertCheckAt1130() {
         logger.info("开始执行11:30风险提醒检测");
         try {
-            riskAlertAppService.checkAndCreateRiskAlerts();
+            riskAlertAppService.checkAndCreateRiskAlerts("11:30");
             logger.info("11:30风险提醒检测完成");
         } catch (Exception e) {
             logger.error("11:30风险提醒检测失败", e);
@@ -43,7 +43,7 @@ public class RiskAlertScheduler {
     public void triggerRiskAlertCheckAt1430() {
         logger.info("开始执行14:30风险提醒检测");
         try {
-            riskAlertAppService.checkAndCreateRiskAlerts();
+            riskAlertAppService.checkAndCreateRiskAlerts("14:30");
             logger.info("14:30风险提醒检测完成");
         } catch (Exception e) {
             logger.error("14:30风险提醒检测失败", e);

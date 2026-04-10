@@ -65,6 +65,18 @@ public class DataCollectionTargetRepositoryImpl implements DataCollectionTargetR
     }
 
     @Override
+    public List<DataCollectionTarget> search(String keyword) {
+        List<DataCollectionTargetPO> pos = dataCollectionTargetMapper.search(keyword);
+        return pos.stream().map(this::mapToDomainEntity).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<DataCollectionTarget> searchByType(String type, String keyword) {
+        List<DataCollectionTargetPO> pos = dataCollectionTargetMapper.searchByType(type, keyword);
+        return pos.stream().map(this::mapToDomainEntity).collect(Collectors.toList());
+    }
+
+    @Override
     public DataCollectionTarget save(DataCollectionTarget target) {
         DataCollectionTargetPO po = mapToPO(target);
         if (target.getId() == null) {

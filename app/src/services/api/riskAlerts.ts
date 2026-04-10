@@ -22,6 +22,10 @@ export const riskAlertsApi = {
   // 手动触发风险检测（测试用）
   checkRiskAlerts: () =>
     apiClient.post<ApiResponse<string>>('/risk-alerts/check'),
+
+  // 获取用户当天风险提醒数量（用于仪表盘，与已读/未读无关）
+  getTodayRiskAlertCount: (userId: number = 1) =>
+    apiClient.get<ApiResponse<{ total: number }>>(`/risk-alerts/user/${userId}/today-count`),
 }
 
 // 全局通知未读计数接口

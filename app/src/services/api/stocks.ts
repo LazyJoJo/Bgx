@@ -27,6 +27,10 @@ export const stocksApi = {
     apiClient.post<ApiResponse<string>>(`/data-collection-targets/${id}/activate`),
 
   // 停用股票采集目标
-  deactivateStockTarget: (id: number) => 
+  deactivateStockTarget: (id: number) =>
     apiClient.post<ApiResponse<string>>(`/data-collection-targets/${id}/deactivate`),
+
+  // 搜索采集目标（股票和基金）
+  searchTargets: (keyword: string, type?: string) =>
+    apiClient.get<ApiResponse<any[]>>('/data-collection-targets/search', { params: { keyword, type } }),
 }

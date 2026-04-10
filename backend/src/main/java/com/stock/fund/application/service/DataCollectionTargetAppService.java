@@ -19,6 +19,7 @@ public interface DataCollectionTargetAppService {
     List<DataCollectionTarget> getActiveTargets();
     List<DataCollectionTarget> getTargetsByCategory(String category);
     List<DataCollectionTarget> getTargetsNeedingCollection();
+    List<DataCollectionTarget> searchTargets(String type, String keyword);
     void activateTarget(Long id);
     void deactivateTarget(Long id);
     void activateTargetByCode(String code);

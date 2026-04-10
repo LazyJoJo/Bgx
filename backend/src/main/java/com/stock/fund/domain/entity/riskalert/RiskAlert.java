@@ -4,12 +4,18 @@ import com.stock.fund.domain.entity.AggregateRoot;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
  * 风险提醒聚合根
  * 系统自动检测股票/基金的涨跌幅风险，超阈值时创建
+ * <p>
+ * 数值精度规范:
+ * - changePercent (涨跌幅): 2位小数
+ * - currentPrice (当前价格): 2位小数
+ * - yesterdayClose (昨日收盘价): 2位小数
  *
  * 记录规则：
  * - 每个时间点(11:30/14:30)独立判断，有风险才记录
@@ -26,9 +32,9 @@ public class RiskAlert extends AggregateRoot<Long> {
     private LocalDate alertDate;           // 风险日期
     private String timePoint;              // 时间点：11:30 / 14:30
     private Boolean hasRisk;               // 是否有风险
-    private Double changePercent;           // 涨跌幅（%，正数=上涨，负数=下跌）
-    private Double currentPrice;            // 触发时的价格
-    private Double yesterdayClose;          // 昨日收盘价（计算基准）
+    private BigDecimal changePercent;           // 涨跌幅（%，正数=上涨，负数=下跌）(2位小数)
+    private BigDecimal currentPrice;            // 触发时的价格 (2位小数)
+    private BigDecimal yesterdayClose;          // 昨日收盘价（计算基准）(2位小数)
     private Boolean isRead;                // 是否已读
     private LocalDateTime triggeredAt;      // 触发时间
 
@@ -42,8 +48,8 @@ public class RiskAlert extends AggregateRoot<Long> {
 
     public RiskAlert(Long userId, String symbol, String symbolType, String symbolName,
                      LocalDate alertDate, String timePoint,
-                     Boolean hasRisk, Double changePercent,
-                     Double currentPrice, Double yesterdayClose) {
+                     Boolean hasRisk, BigDecimal changePercent,
+                     BigDecimal currentPrice, BigDecimal yesterdayClose) {
         this();
         this.userId = userId;
         this.symbol = symbol;

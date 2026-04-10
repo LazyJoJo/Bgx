@@ -10,7 +10,6 @@ import {
 import { alertsApi } from '@services/api/alerts'
 import { dashboardApi } from '@services/api/dashboard'
 import { riskAlertsApi } from '@services/api/riskAlerts'
-import { useAppSelector } from '@store/hooks'
 import { Button, Card, Col, Row, Space, Statistic, Table, Tag, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -28,33 +27,32 @@ const Dashboard = () => {
   })
   const [recentAlerts, setRecentAlerts] = useState<PriceAlert[]>([])
   const [loading, setLoading] = useState(false)
-  const riskAlertUnreadCount = useAppSelector((state) => state.riskAlerts.unreadCount)
 
   useEffect(() => {
     fetchDashboardData()
-  }, [riskAlertUnreadCount])
+  }, [])
 
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
-      const [statsResponse, alertsResponse, activeAlertsResponse, riskAlertsResponse] = await Promise.all([
+      const [statsResponse, alertsResponse, activeAlertsResponse, todayRiskCountResponse] = await Promise.all([
         dashboardApi.getDashboardStats(),
         dashboardApi.getRecentAlerts(5),
         alertsApi.getUserActiveAlerts(1),
-        riskAlertsApi.getUnreadCount(1)
+        riskAlertsApi.getTodayRiskAlertCount(1)
       ])
 
-      const riskUnreadCount = riskAlertsResponse.success ? riskAlertsResponse.data.total : 0
+      const todayRiskCount = todayRiskCountResponse.success ? todayRiskCountResponse.data.total : 0
       const activeAlertsCount = activeAlertsResponse.success ? activeAlertsResponse.data.length : 0
-      // 活跃提醒 = 价格提醒活跃数 + 风险提醒未读数
-      const totalActiveAlerts = activeAlertsCount + riskUnreadCount
+      // 活跃提醒 = 价格提醒活跃数 + 当天风险提醒数
+      const totalActiveAlerts = activeAlertsCount + todayRiskCount
 
       setStats({
         totalStocks: statsResponse.totalStocks || 0,
         totalFunds: statsResponse.totalFunds || 0,
         activeAlerts: totalActiveAlerts,
         triggeredAlerts: statsResponse.triggeredAlerts || 0,
-        riskAlertCount: riskUnreadCount
+        riskAlertCount: todayRiskCount
       })
 
       setRecentAlerts(alertsResponse.data || [])
@@ -106,7 +104,7 @@ const Dashboard = () => {
       title: '当前价格',
       dataIndex: 'currentPrice',
       key: 'currentPrice',
-      render: (price: number) => `¥${price.toFixed(2)}`
+      render: (price: number) => price != null ? `¥${price.toFixed(2)}` : '-'
     },
     {
       title: '状态',

@@ -31,10 +31,24 @@
     </select>
 
     <select id="findTargetsNeedingCollection" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
-        SELECT * FROM data_collection_target 
-        WHERE active = true 
+        SELECT * FROM data_collection_target
+        WHERE active = true
         AND (next_collection_time IS NULL OR next_collection_time &lt;= NOW())
         ORDER BY type, code
+    </select>
+
+    <select id="search" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target
+        WHERE (code LIKE CONCAT('%', #{keyword}, '%') OR name LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY type, code
+        LIMIT 50
+    </select>
+
+    <select id="searchByType" resultType="com.stock.fund.infrastructure.entity.DataCollectionTargetPO">
+        SELECT * FROM data_collection_target
+        WHERE type = #{type} AND (code LIKE CONCAT('%', #{keyword}, '%') OR name LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY code
+        LIMIT 50
     </select>
 
     <delete id="deleteByCode" parameterType="string">

@@ -27,9 +27,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.DayOfWeek;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -71,19 +74,19 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         // 实际实现中这里会调用外部API如Tushare等
         Stock stock = stockRepository.findBySymbol(symbol)
             .orElseThrow(() -> new RuntimeException("股票不存在: " + symbol));
-        
+
         StockQuote quote = new StockQuote();
         quote.setStockId(stock.getId());
         quote.setQuoteTime(LocalDateTime.now());
-        quote.setOpen(100.00);
-        quote.setHigh(105.00);
-        quote.setLow(98.00);
-        quote.setClose(102.50);
+        quote.setOpen(new BigDecimal("100.00"));
+        quote.setHigh(new BigDecimal("105.00"));
+        quote.setLow(new BigDecimal("98.00"));
+        quote.setClose(new BigDecimal("102.50"));
         quote.setVolume(1000000L);
-        quote.setAmount(102500000.00);
-        quote.setChange(2.50);
-        quote.setChangePercent(2.50);
-        
+        quote.setAmount(new BigDecimal("102500000.00"));
+        quote.setChange(new BigDecimal("2.50"));
+        quote.setChangePercent(new BigDecimal("2.50"));
+
         return quote;
     }
 
@@ -111,7 +114,7 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         // 实际实现中这里会调用外部API
         Fund fund = fundRepository.findByFundCode(fundCode)
             .orElseThrow(() -> new RuntimeException("基金不存在: " + fundCode));
-        
+
         FundQuote quote = new FundQuote();
         quote.setFundCode(fund.getFundCode());
         quote.setFundName(fund.getName());
@@ -119,10 +122,14 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         quote.setQuoteDate(now.toLocalDate());
         quote.setQuoteTimeOnly(now.toLocalTime());
         quote.setNav(fund.getNav());
-        quote.setPrevNetValue(fund.getNav() * 0.99); // 计算昨日净值（示例逻辑）
-        quote.setChangeAmount(fund.getDayGrowth());
-        quote.setChangePercent(fund.getDayGrowth());
-        
+        // 计算昨日净值 = nav * 0.99，保留4位小数
+        BigDecimal prevNetValue = fund.getNav()
+            .multiply(new BigDecimal("0.99"))
+            .setScale(4, RoundingMode.HALF_UP);
+        quote.setPrevNetValue(prevNetValue);
+        quote.setChangeAmount(fund.getDayGrowth().setScale(4, RoundingMode.HALF_UP));
+        quote.setChangePercent(fund.getDayGrowth().setScale(2, RoundingMode.HALF_UP));
+
         return quote;
     }
 
@@ -316,50 +323,76 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
      */
     private FundQuote convertToFundQuote(DataCollectionTarget target, Map<String, String> fundData) {
         FundQuote fundQuote = new FundQuote();
-        
+
         // 设置基金代码
         fundQuote.setFundCode(target.getCode());
-        
+
         // 设置基金名称
         fundQuote.setFundName(target.getName());
-        
-        // 解析净值
-        double nav = 0.0;
+
+        // 解析净值 - 使用BigDecimal避免精度问题
+        BigDecimal nav = BigDecimal.ZERO;
         try {
-            nav = Double.parseDouble(fundData.get("netValue"));
+            String netValueStr = fundData.get("netValue");
+            if (netValueStr != null && !netValueStr.trim().isEmpty()) {
+                nav = new BigDecimal(netValueStr).setScale(4, RoundingMode.HALF_UP);
+            }
             fundQuote.setNav(nav);
         } catch (NumberFormatException | NullPointerException e) {
-            fundQuote.setNav(0.0);
+            fundQuote.setNav(BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP));
         }
-        
+
         // 从API获取的昨日净值计算涨跌幅
-        double oldNetValue = 0.0;
+        BigDecimal oldNetValue = BigDecimal.ZERO;
         try {
-            oldNetValue = Double.parseDouble(fundData.get("oldNetValue"));
-            double changePercent = ((nav - oldNetValue) / oldNetValue) * 100.0;
-            fundQuote.setChangePercent(changePercent);
-            fundQuote.setPrevNetValue(oldNetValue); // 昨日净值
+            String oldNetValueStr = fundData.get("oldNetValue");
+            if (oldNetValueStr != null && !oldNetValueStr.trim().isEmpty()) {
+                oldNetValue = new BigDecimal(oldNetValueStr).setScale(4, RoundingMode.HALF_UP);
+                fundQuote.setPrevNetValue(oldNetValue); // 昨日净值
+
+                // 计算涨跌幅: (nav - oldNetValue) / oldNetValue * 100
+                if (oldNetValue.compareTo(BigDecimal.ZERO) != 0) {
+                    BigDecimal changePercent = nav.subtract(oldNetValue)
+                        .divide(oldNetValue, 4, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"))
+                        .setScale(2, RoundingMode.HALF_UP);
+                    fundQuote.setChangePercent(changePercent);
+                } else {
+                    fundQuote.setChangePercent(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                }
+            } else {
+                fundQuote.setPrevNetValue(BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP));
+                fundQuote.setChangePercent(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            }
         } catch (NumberFormatException | NullPointerException e) {
             // 如果无法计算涨跌幅，设为0
-            fundQuote.setChangePercent(0.0);
+            fundQuote.setChangePercent(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            fundQuote.setPrevNetValue(BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP));
         }
-        
-        // 计算涨跌额 (当前净值 - 昨日净值)
-        double changeAmount = nav - oldNetValue;
+
+        // 计算涨跌额 (当前净值 - 昨日净值) - 4位小数
+        BigDecimal changeAmount = nav.subtract(oldNetValue).setScale(4, RoundingMode.HALF_UP);
         fundQuote.setChangeAmount(changeAmount);
-        
+
         // 使用当前系统日期，但使用外部接口提供的具体时间值
         String timeStr = fundData.get("time");
-        
+
         LocalDate currentDate = LocalDate.now(); // 日期总是使用当前系统日期
         LocalTime specificTime = LocalTime.now(); // 默认使用当前时间
-        
+
+        // 判断当前是否为开盘时间段（9:30-15:00）
+        // 如果不在开盘时间段内，说明API返回的是上一个交易日的收盘数据，应该使用昨日日期
+        if (!isMarketOpenTime(currentDate, specificTime)) {
+            currentDate = currentDate.minusDays(1);
+            System.out.println("当前非开盘时间段，使用昨日日期: " + currentDate);
+        }
+
         if (timeStr != null && !timeStr.trim().isEmpty()) {
             // 尝试解析API返回的时间字符串
             try {
                 // 根据API返回的实际格式解析时间
                 // timeStr 格式可能是 HH:MM:SS 或 HH:MM
-                
+
                 // 根据时间字符串的格式进行解析
                 if (timeStr.contains(":")) {
                     // 如果时间包含冒号，按标准时间格式解析
@@ -380,10 +413,10 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
                 specificTime = LocalTime.now();
             }
         }
-        
+
         fundQuote.setQuoteDate(currentDate);
         fundQuote.setQuoteTimeOnly(specificTime);
-        
+
         return fundQuote;
     }
 
@@ -394,10 +427,10 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         stock.setIndustry(industry);
         stock.setMarket(market);
         stock.setListingDate(LocalDate.of(2000, 1, 1));
-        stock.setTotalShare(1000000.00);
-        stock.setFloatShare(1000000.00);
-        stock.setPe(15.0);
-        stock.setPb(1.5);
+        stock.setTotalShare(new BigDecimal("1000000.00"));
+        stock.setFloatShare(new BigDecimal("1000000.00"));
+        stock.setPe(new BigDecimal("15.00"));
+        stock.setPb(new BigDecimal("1.50"));
         return stock;
     }
 
@@ -408,12 +441,12 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         fund.setType(type);
         fund.setManager(manager);
         fund.setEstablishmentDate(LocalDate.of(2005, 1, 1));
-        fund.setFundSize(100.00);
-        fund.setNav(2.2567);
-        fund.setDayGrowth(0.30);
-        fund.setWeekGrowth(1.10);
-        fund.setMonthGrowth(2.80);
-        fund.setYearGrowth(14.50);
+        fund.setFundSize(new BigDecimal("100.00"));
+        fund.setNav(new BigDecimal("2.2567"));
+        fund.setDayGrowth(new BigDecimal("0.30"));
+        fund.setWeekGrowth(new BigDecimal("1.10"));
+        fund.setMonthGrowth(new BigDecimal("2.80"));
+        fund.setYearGrowth(new BigDecimal("14.50"));
         return fund;
     }
     
@@ -476,23 +509,44 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
     private Fund extractFundBasicInfo(FundQuote fundQuote) {
         Fund fund = new Fund();
         fund.setFundCode(fundQuote.getFundCode());
-        
+
         // 使用从API获取的基金名称
         fund.setName(fundQuote.getFundName());
-        
+
         // 从实时数据中提取净值作为基础信息
         fund.setNav(fundQuote.getNav());
         fund.setDayGrowth(fundQuote.getChangePercent());
-        
+
         // 设置默认值
         fund.setType("未知"); // 实时数据中通常不包含基金类型
         fund.setManager("未知"); // 实时数据中通常不包含基金经理
         fund.setEstablishmentDate(LocalDate.now()); // 使用当前日期作为默认成立日期
-        fund.setFundSize(0.0); // 实时数据中通常不包含基金规模
-        fund.setWeekGrowth(0.0);
-        fund.setMonthGrowth(0.0);
-        fund.setYearGrowth(0.0);
-        
+        fund.setFundSize(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)); // 实时数据中通常不包含基金规模
+        fund.setWeekGrowth(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        fund.setMonthGrowth(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        fund.setYearGrowth(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+
         return fund;
+    }
+
+    /**
+     * 判断当前时间是否为开盘时间段
+     * A股开盘时间：9:30 - 15:00
+     * @param date 查询日期
+     * @param time 查询时间
+     * @return 是否在开盘时间段内
+     */
+    private boolean isMarketOpenTime(LocalDate date, LocalTime time) {
+        // 判断是否为工作日（周一至周五）
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
+            return false;
+        }
+
+        // 判断是否在开盘时间段内（9:30 - 15:00）
+        LocalTime marketOpenStart = LocalTime.of(9, 30);
+        LocalTime marketOpenEnd = LocalTime.of(15, 0);
+
+        return !time.isBefore(marketOpenStart) && !time.isAfter(marketOpenEnd);
     }
 }

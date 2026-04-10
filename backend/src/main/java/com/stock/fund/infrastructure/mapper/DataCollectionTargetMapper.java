@@ -24,6 +24,10 @@ public interface DataCollectionTargetMapper extends BaseMapper<DataCollectionTar
     List<DataCollectionTargetPO> findActiveTargets();
     
     List<DataCollectionTargetPO> findTargetsNeedingCollection();
-    
+
+    List<DataCollectionTargetPO> search(@Param("keyword") String keyword);
+
+    List<DataCollectionTargetPO> searchByType(@Param("type") String type, @Param("keyword") String keyword);
+
     void deleteByCode(@Param("code") String code);
 }

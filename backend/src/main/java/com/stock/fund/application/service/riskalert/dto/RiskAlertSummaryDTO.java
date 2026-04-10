@@ -2,11 +2,17 @@ package com.stock.fund.application.service.riskalert.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
 /**
  * 风险提醒汇总数据（按日期分组）
+ * <p>
+ * 数值精度规范:
+ * - changePercent (涨跌幅): 2位小数
+ * - currentPrice (当前价格): 2位小数
+ * - yesterdayClose (昨日收盘价): 2位小数
  */
 @Data
 @Builder
@@ -25,9 +31,9 @@ public class RiskAlertSummaryDTO {
         private String symbolName;         // 标的名称
         private String timePoint;          // 时间点：11:30 / 14:30
         private Boolean hasRisk;           // 是否有风险
-        private Double changePercent;      // 涨跌幅
-        private Double currentPrice;        // 当前价格
-        private Double yesterdayClose;     // 昨日收盘价
+        private BigDecimal changePercent;      // 涨跌幅 (2位小数)
+        private BigDecimal currentPrice;        // 当前价格 (2位小数)
+        private BigDecimal yesterdayClose;     // 昨日收盘价 (2位小数)
         private Boolean isRead;            // 是否已读
         private String triggeredAt;        // 触发时间
     }

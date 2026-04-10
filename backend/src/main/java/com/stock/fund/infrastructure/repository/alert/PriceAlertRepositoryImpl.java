@@ -1,5 +1,6 @@
 package com.stock.fund.infrastructure.repository.alert;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -99,11 +100,13 @@ public class PriceAlertRepositoryImpl implements PriceAlertRepository {
         alert.setSymbolType(po.getSymbolType());
         alert.setSymbolName(po.getSymbolName());
         alert.setAlertType(po.getAlertType());
-        alert.setTargetPrice(po.getTargetPrice());
-        alert.setTargetChangePercent(po.getTargetChangePercent());
-        alert.setBasePrice(po.getBasePrice());
-        alert.setCurrentValue(po.getCurrentValue());
-        alert.setStatus(po.getStatus());
+        // BigDecimal -> Double conversion
+        alert.setTargetPrice(po.getTargetPrice() != null ? po.getTargetPrice().doubleValue() : null);
+        alert.setTargetChangePercent(po.getTargetChangePercent() != null ? po.getTargetChangePercent().doubleValue() : null);
+        alert.setBasePrice(po.getBasePrice() != null ? po.getBasePrice().doubleValue() : null);
+        alert.setCurrentValue(po.getCurrentValue() != null ? po.getCurrentValue().doubleValue() : null);
+        // is_active (Boolean) -> status (String)
+        alert.setStatus(po.getIsActive() != null && po.getIsActive() ? "ACTIVE" : "INACTIVE");
         alert.setLastTriggered(po.getLastTriggered());
         alert.setDescription(po.getDescription());
         alert.setCreatedAt(po.getCreatedAt());
@@ -120,11 +123,13 @@ public class PriceAlertRepositoryImpl implements PriceAlertRepository {
         po.setSymbolType(alert.getSymbolType());
         po.setSymbolName(alert.getSymbolName());
         po.setAlertType(alert.getAlertType());
-        po.setTargetPrice(alert.getTargetPrice());
-        po.setTargetChangePercent(alert.getTargetChangePercent());
-        po.setBasePrice(alert.getBasePrice());
-        po.setCurrentValue(alert.getCurrentValue());
-        po.setStatus(alert.getStatus());
+        // Double -> BigDecimal conversion
+        po.setTargetPrice(alert.getTargetPrice() != null ? BigDecimal.valueOf(alert.getTargetPrice()) : null);
+        po.setTargetChangePercent(alert.getTargetChangePercent() != null ? BigDecimal.valueOf(alert.getTargetChangePercent()) : null);
+        po.setBasePrice(alert.getBasePrice() != null ? BigDecimal.valueOf(alert.getBasePrice()) : null);
+        po.setCurrentValue(alert.getCurrentValue() != null ? BigDecimal.valueOf(alert.getCurrentValue()) : null);
+        // status (String) -> is_active (Boolean)
+        po.setIsActive("ACTIVE".equals(alert.getStatus()) || "TRIGGERED".equals(alert.getStatus()));
         po.setLastTriggered(alert.getLastTriggered());
         po.setDescription(alert.getDescription());
         po.setCreatedAt(alert.getCreatedAt());

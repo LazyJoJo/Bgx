@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -216,8 +218,8 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
     @Override
     @Transactional
-    public void checkAndCreateRiskAlerts() {
-        logger.info("开始风险提醒检测");
+    public void checkAndCreateRiskAlerts(String timePoint) {
+        logger.info("开始风险提醒检测, timePoint={}", timePoint);
         LocalDateTime now = LocalDateTime.now();
 
         // 检查所有用户的价格提醒
@@ -226,25 +228,19 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         for (PriceAlert alert : activeAlerts) {
             try {
                 // 获取当前价格
-                Double currentPrice = getCurrentPrice(alert.getSymbol(), alert.getSymbolType());
+                BigDecimal currentPrice = getCurrentPrice(alert.getSymbol(), alert.getSymbolType());
                 if (currentPrice == null) {
                     continue;
                 }
 
                 // 获取昨日收盘价
-                Double yesterdayClose = getYesterdayClose(alert.getSymbol(), alert.getSymbolType());
+                BigDecimal yesterdayClose = getYesterdayClose(alert.getSymbol(), alert.getSymbolType());
                 if (yesterdayClose == null) {
                     yesterdayClose = currentPrice; // 估算
                 }
 
-                // 处理风险
-                processAlertTriggeredRisk(
-                        alert.getUserId(),
-                        alert.getSymbol(),
-                        alert.getSymbolType(),
-                        currentPrice,
-                        yesterdayClose
-                );
+                // 处理风险（内部使用 alert.shouldTrigger() 判断）
+                processAlertTriggeredRisk(alert, currentPrice, yesterdayClose, timePoint);
             } catch (Exception e) {
                 logger.error("检查提醒失败: symbol={}, type={}",
                         alert.getSymbol(), alert.getSymbolType(), e);
@@ -252,6 +248,16 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         }
 
         logger.info("风险提醒检测完成");
+    }
+
+    @Override
+    @Transactional
+    public void checkAndCreateRiskAlerts() {
+        // 根据当前时间自动判断时间点
+        LocalDateTime now = LocalDateTime.now();
+        String timePoint = now.getHour() < 12 ? "11:30" : "14:30";
+        logger.info("自动判断风险提醒时间点: {}", timePoint);
+        checkAndCreateRiskAlerts(timePoint);
     }
 
     @Override
@@ -272,17 +278,22 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         for (Map.Entry<String, List<RiskAlert>> entry : grouped.entrySet()) {
             List<RiskAlert> groupAlerts = entry.getValue();
 
-            // 按触发时间倒序排列
-            groupAlerts.sort(Comparator.comparing(RiskAlert::getTriggeredAt).reversed());
+            // 按触发时间倒序排列（处理null情况）
+            groupAlerts.sort(Comparator.comparing(
+                    RiskAlert::getTriggeredAt,
+                    Comparator.nullsLast(Comparator.reverseOrder())));
 
             RiskAlert latest = groupAlerts.get(0);
-            // 按时间点倒序（14:30 > 11:30）
-            groupAlerts.sort(Comparator.comparing(RiskAlert::getTimePoint).reversed());
+            // 按时间点倒序（14:30 > 11:30），处理null情况
+            groupAlerts.sort(Comparator.comparing(
+                    RiskAlert::getTimePoint,
+                    Comparator.nullsLast(Comparator.reverseOrder())));
 
             // 计算最大涨跌幅
-            double maxChangePercent = groupAlerts.stream()
-                    .mapToDouble(RiskAlert::getChangePercent)
-                    .max()
+            BigDecimal maxChangePercent = groupAlerts.stream()
+                    .map(RiskAlert::getChangePercent)
+                    .filter(Objects::nonNull)
+                    .max(BigDecimal::compareTo)
                     .orElse(latest.getChangePercent());
 
             // 构建明细列表
@@ -295,12 +306,16 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
                             null))
                     .collect(Collectors.toList());
 
+            // 如果alertDate为null，使用triggeredAt的日期作为fallback
+            java.time.LocalDate alertDate = latest.getAlertDate() != null ?
+                    latest.getAlertDate() : latest.getTriggeredAt().toLocalDate();
+
             result.add(new RiskAlertMergeDTO(
                     latest.getId(),
                     latest.getSymbol(),
                     latest.getSymbolType(),
                     latest.getSymbolName(),
-                    latest.getAlertDate(),
+                    alertDate,
                     groupAlerts.size(),
                     maxChangePercent,
                     latest.getChangePercent(),
@@ -311,8 +326,10 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
                     details));
         }
 
-        // 按最新触发时间倒序
-        result.sort(Comparator.comparing(RiskAlertMergeDTO::latestTriggeredAt).reversed());
+        // 按最新触发时间倒序（处理null情况）
+        result.sort(Comparator.comparing(
+                RiskAlertMergeDTO::latestTriggeredAt,
+                Comparator.nullsLast(Comparator.reverseOrder())));
 
         return result;
     }
@@ -323,7 +340,7 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         logger.info("删除风险提醒: id={}", id);
     }
 
-    private Double getCurrentPrice(String symbol, String symbolType) {
+    private BigDecimal getCurrentPrice(String symbol, String symbolType) {
         try {
             if ("STOCK".equals(symbolType)) {
                 var stocks = stockRepository.findAll();
@@ -351,7 +368,7 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         return null;
     }
 
-    private Double getYesterdayClose(String symbol, String symbolType) {
+    private BigDecimal getYesterdayClose(String symbol, String symbolType) {
         try {
             if ("STOCK".equals(symbolType)) {
                 var stocks = stockRepository.findAll();
@@ -381,44 +398,50 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
     @Override
     @Transactional
-    public void processAlertTriggeredRisk(Long userId, String symbol, String symbolType,
-                                          Double currentPrice, Double yesterdayClose) {
-        logger.info("处理价格提醒触发的风险: userId={}, symbol={}, symbolType={}, currentPrice={}",
-                userId, symbol, symbolType, currentPrice);
+    public void processAlertTriggeredRisk(PriceAlert alert, BigDecimal currentPrice, BigDecimal yesterdayClose, String timePoint) {
+        logger.info("处理价格提醒触发的风险: alertId={}, symbol={}, currentPrice={}, timePoint={}",
+                alert.getId(), alert.getSymbol(), currentPrice, timePoint);
 
-        // 计算涨跌幅
-        double changePercent = 0.0;
-        if (yesterdayClose != null && yesterdayClose != 0) {
-            changePercent = (currentPrice - yesterdayClose) / yesterdayClose * 100;
+        // 使用用户设置的 PriceAlert 判断是否触发
+        boolean hasRisk = alert.shouldTrigger(currentPrice.doubleValue());
+
+        if (!hasRisk) {
+            logger.debug("价格未达到提醒条件，不创建风险记录: symbol={}, currentPrice={}", alert.getSymbol(), currentPrice);
+            return;
         }
 
-        // 判断是否有风险（涨跌幅超过阈值，这里简化处理，实际应该根据用户设置的阈值判断）
-        boolean hasRisk = riskAlertDomainService.shouldTriggerAlert(changePercent);
+        // 计算涨跌幅（用于记录）- 2位小数
+        BigDecimal changePercent = BigDecimal.ZERO;
+        if (yesterdayClose != null && yesterdayClose.compareTo(BigDecimal.ZERO) != 0) {
+            changePercent = currentPrice.subtract(yesterdayClose)
+                    .divide(yesterdayClose, 4, RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"))
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
 
-        // 确定时间点
+        // 使用传入的时间点
         LocalDateTime now = LocalDateTime.now();
-        String timePoint = now.getHour() < 12 ? "11:30" : "14:30";
 
         // 创建风险记录
         RiskAlert riskAlert = new RiskAlert();
-        riskAlert.setUserId(userId);
-        riskAlert.setSymbol(symbol);
-        riskAlert.setSymbolType(symbolType);
+        riskAlert.setUserId(alert.getUserId());
+        riskAlert.setSymbol(alert.getSymbol());
+        riskAlert.setSymbolType(alert.getSymbolType());
         riskAlert.setAlertDate(now.toLocalDate());
         riskAlert.setTimePoint(timePoint);
-        riskAlert.setHasRisk(hasRisk);
+        riskAlert.setHasRisk(true);
         riskAlert.setChangePercent(changePercent);
         riskAlert.setCurrentPrice(currentPrice);
         riskAlert.setYesterdayClose(yesterdayClose);
 
-        // 获取标的名称
-        String symbolName = fetchSymbolName(symbol, symbolType);
+        // 获取标的名称（优先使用 PriceAlert 中已保存的名称）
+        String symbolName = alert.getSymbolName();
+        if (symbolName == null || symbolName.isEmpty()) {
+            symbolName = fetchSymbolName(alert.getSymbol(), alert.getSymbolType());
+        }
         riskAlert.setSymbolName(symbolName);
 
-        // 只有有风险时才创建记录
-        if (hasRisk) {
-            createOrUpdateRiskAlert(riskAlert);
-        }
+        createOrUpdateRiskAlert(riskAlert);
     }
 
     private String fetchSymbolName(String symbol, String symbolType) {

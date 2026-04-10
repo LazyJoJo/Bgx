@@ -1,7 +1,10 @@
 package com.stock.fund.application.service.riskalert;
 
 import com.stock.fund.application.service.riskalert.dto.*;
+import com.stock.fund.domain.entity.alert.PriceAlert;
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +17,14 @@ public interface RiskAlertAppService {
     /**
      * 批量检查并创建风险提醒
      * 遍历所有股票和基金的最新行情，超过阈值则创建风险提醒
+     * @param timePoint 时间点，传入 "11:30" 或 "14:30"
+     */
+    void checkAndCreateRiskAlerts(String timePoint);
+
+    /**
+     * 批量检查并创建风险提醒（自动判断时间点）
+     * 根据当前时间自动判断是11:30还是14:30
+     * 用于数据采集后触发风险检测
      */
     void checkAndCreateRiskAlerts();
 
@@ -77,8 +88,11 @@ public interface RiskAlertAppService {
 
     /**
      * 处理价格提醒触发的风险
-     * 检查用户设置的价格提醒，根据涨跌幅判断是否产生风险记录
+     * 根据用户设置的 PriceAlert 判断是否产生风险记录
+     * @param alert 用户设置的价格提醒，使用 alert.shouldTrigger(currentPrice) 判断是否触发
+     * @param currentPrice 当前价格
+     * @param yesterdayClose 昨日收盘价
+     * @param timePoint 时间点，传入 "11:30" 或 "14:30"
      */
-    void processAlertTriggeredRisk(Long userId, String symbol, String symbolType,
-                                    Double currentPrice, Double yesterdayClose);
+    void processAlertTriggeredRisk(PriceAlert alert, BigDecimal currentPrice, BigDecimal yesterdayClose, String timePoint);
 }

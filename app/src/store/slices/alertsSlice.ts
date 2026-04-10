@@ -61,6 +61,40 @@ export const deleteAlert = createAsyncThunk(
   }
 )
 
+export const batchCreateAlert = createAsyncThunk(
+  'alerts/batchCreateAlert',
+  async (alertData: {
+    userId: number
+    symbols: string[]
+    symbolType: string
+    symbolName?: string
+    alertType: string
+    targetPrice?: number
+    targetChangePercent?: number
+    basePrice?: number
+    status: boolean | string
+  }) => {
+    const response = await alertsApi.batchCreateAlert(alertData)
+    return response.data
+  }
+)
+
+export const activateAlert = createAsyncThunk(
+  'alerts/activateAlert',
+  async (id: string) => {
+    await alertsApi.activateAlert(id)
+    return { id, status: 'ACTIVE' }
+  }
+)
+
+export const deactivateAlert = createAsyncThunk(
+  'alerts/deactivateAlert',
+  async (id: string) => {
+    await alertsApi.deactivateAlert(id)
+    return { id, status: 'INACTIVE' }
+  }
+)
+
 const alertsSlice = createSlice({
   name: 'alerts',
   initialState,
@@ -90,7 +124,10 @@ const alertsSlice = createSlice({
         state.history = action.payload
       })
       .addCase(createAlert.fulfilled, (state, action) => {
-        state.list.push(action.payload)
+        // response.data is CreateAlertResponse, push the alert property
+        if (action.payload?.alert) {
+          state.list.push(action.payload.alert)
+        }
       })
       .addCase(updateAlert.fulfilled, (state, action) => {
         const index = state.list.findIndex(alert => alert.id === action.payload.id)
@@ -100,6 +137,18 @@ const alertsSlice = createSlice({
       })
       .addCase(deleteAlert.fulfilled, (state, action) => {
         state.list = state.list.filter(alert => alert.id !== action.payload)
+      })
+      .addCase(activateAlert.fulfilled, (state, action) => {
+        const index = state.list.findIndex(alert => alert.id === action.payload.id)
+        if (index !== -1) {
+          state.list[index].status = 'ACTIVE'
+        }
+      })
+      .addCase(deactivateAlert.fulfilled, (state, action) => {
+        const index = state.list.findIndex(alert => alert.id === action.payload.id)
+        if (index !== -1) {
+          state.list[index].status = 'INACTIVE'
+        }
       })
   }
 })

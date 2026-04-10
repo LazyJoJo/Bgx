@@ -16,6 +16,8 @@ public interface DataCollectionTargetRepository {
     List<DataCollectionTarget> findByCategory(String category);
     List<DataCollectionTarget> findActiveTargets();
     List<DataCollectionTarget> findTargetsNeedingCollection();
+    List<DataCollectionTarget> search(String keyword);
+    List<DataCollectionTarget> searchByType(String type, String keyword);
     DataCollectionTarget save(DataCollectionTarget target);
     List<DataCollectionTarget> saveAll(List<DataCollectionTarget> targets);
     void deleteById(Long id);

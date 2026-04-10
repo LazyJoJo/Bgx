@@ -2,18 +2,78 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.stock.fund.infrastructure.mapper.alert.PriceAlertMapper">
 
-    <select id="findByUserId" parameterType="long" resultType="com.stock.fund.infrastructure.entity.alert.PriceAlertPO">
+    <resultMap id="BaseResultMap" type="com.stock.fund.infrastructure.entity.alert.PriceAlertPO">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="entity_code" property="symbol"/>
+        <result column="entity_type" property="symbolType"/>
+        <result column="entity_name" property="symbolName"/>
+        <result column="alert_type" property="alertType"/>
+        <result column="threshold" property="targetPrice"/>
+        <result column="target_change_percent" property="targetChangePercent"/>
+        <result column="base_price" property="basePrice"/>
+        <result column="current_value" property="currentValue"/>
+        <result column="is_active" property="isActive"/>
+        <result column="last_triggered" property="lastTriggered"/>
+        <result column="description" property="description"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findByUserId" parameterType="long" resultMap="BaseResultMap">
         SELECT * FROM price_alert WHERE user_id = #{userId} ORDER BY created_at DESC
     </select>
 
-    <select id="findByUserIdAndActive" resultType="com.stock.fund.infrastructure.entity.alert.PriceAlertPO">
-        SELECT * FROM price_alert 
+    <select id="findByUserIdAndActive" resultMap="BaseResultMap">
+        SELECT * FROM price_alert
         WHERE user_id = #{userId} AND is_active = #{active}
         ORDER BY created_at DESC
     </select>
 
-    <select id="findActiveAlerts" resultType="com.stock.fund.infrastructure.entity.alert.PriceAlertPO">
+    <select id="findActiveAlerts" resultMap="BaseResultMap">
         SELECT * FROM price_alert WHERE is_active = true ORDER BY created_at DESC
+    </select>
+
+    <select id="findByUserIdAndSymbolAndSymbolType" resultMap="BaseResultMap">
+        SELECT * FROM price_alert
+        WHERE user_id = #{userId} AND entity_code = #{symbol} AND entity_type = #{symbolType}
+        LIMIT 1
+    </select>
+
+    <select id="findByUserIdWithPage" resultMap="BaseResultMap">
+        SELECT * FROM price_alert
+        WHERE user_id = #{userId}
+        <if test="symbol != null and symbol != ''">
+            AND entity_code LIKE CONCAT('%', #{symbol}, '%')
+        </if>
+        <if test="symbolType != null and symbolType != ''">
+            AND entity_type = #{symbolType}
+        </if>
+        <if test="alertType != null and alertType != ''">
+            AND alert_type = #{alertType}
+        </if>
+        <if test="status != null and status != ''">
+            AND is_active = (CASE WHEN #{status} = 'ACTIVE' THEN true ELSE false END)
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{size} OFFSET #{page}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(*) FROM price_alert
+        WHERE user_id = #{userId}
+        <if test="symbol != null and symbol != ''">
+            AND entity_code LIKE CONCAT('%', #{symbol}, '%')
+        </if>
+        <if test="symbolType != null and symbolType != ''">
+            AND entity_type = #{symbolType}
+        </if>
+        <if test="alertType != null and alertType != ''">
+            AND alert_type = #{alertType}
+        </if>
+        <if test="status != null and status != ''">
+            AND is_active = (CASE WHEN #{status} = 'ACTIVE' THEN true ELSE false END)
+        </if>
     </select>
 
 </mapper>

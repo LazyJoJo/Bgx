@@ -3,11 +3,18 @@ package com.stock.fund.test;
 import com.stock.fund.Application;
 import com.stock.fund.application.service.DataCollectionAppService;
 import com.stock.fund.domain.entity.DataCollectionTarget;
+import com.stock.fund.domain.entity.Fund;
+import com.stock.fund.domain.repository.DataCollectionTargetRepository;
+import com.stock.fund.domain.repository.FundRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,17 +30,46 @@ class AddTargetFundTest {
     @Autowired
     private DataCollectionAppService dataCollectionAppService;
 
+    @Autowired
+    private DataCollectionTargetRepository dataCollectionTargetRepository;
+
+    @Autowired
+    private FundRepository fundRepository;
+
+    @BeforeEach
+    void setUp() {
+        // 清理可能存在的测试数据 - fund_basic表
+        Optional<Fund> fund1 = fundRepository.findByFundCode("000001");
+        fund1.ifPresent(f -> fundRepository.deleteById(f.getId()));
+
+        Optional<Fund> fund2 = fundRepository.findByFundCode("000011");
+        fund2.ifPresent(f -> fundRepository.deleteById(f.getId()));
+
+        Optional<Fund> fund3 = fundRepository.findByFundCode("110011");
+        fund3.ifPresent(f -> fundRepository.deleteById(f.getId()));
+
+        // 清理可能存在的测试数据 - data_collection_target表
+        Optional<DataCollectionTarget> target1 = dataCollectionTargetRepository.findByCode("000001");
+        target1.ifPresent(t -> dataCollectionTargetRepository.deleteById(t.getId()));
+
+        Optional<DataCollectionTarget> target2 = dataCollectionTargetRepository.findByCode("000011");
+        target2.ifPresent(t -> dataCollectionTargetRepository.deleteById(t.getId()));
+
+        Optional<DataCollectionTarget> target3 = dataCollectionTargetRepository.findByCode("110011");
+        target3.ifPresent(t -> dataCollectionTargetRepository.deleteById(t.getId()));
+    }
+
     @Test
     void testAddTargetFund_Success() {
         System.out.println("\n=== 测试添加基金目标 - 成功场景 ===");
-        
+
         // 使用一个有效的基金代码进行测试
         String fundCode = "000001";
         System.out.println("尝试添加基金目标: " + fundCode);
-        
+
         // 执行添加操作
         DataCollectionTarget target = dataCollectionAppService.addTargetFund(fundCode);
-        
+
         // 验证结果
         assertNotNull(target, "目标对象不应为空");
         assertEquals(fundCode, target.getCode(), "基金代码应该匹配");
@@ -48,22 +84,22 @@ class AddTargetFundTest {
     @Test
     void testAddTargetFund_Duplicate() {
         System.out.println("\n=== 测试添加基金目标 - 重复添加场景 ===");
-        
+
         String fundCode = "000011"; // 使用另一个基金代码
         System.out.println("第一次添加基金目标: " + fundCode);
-        
+
         // 第一次添加
         DataCollectionTarget firstTarget = dataCollectionAppService.addTargetFund(fundCode);
         assertNotNull(firstTarget, "第一次添加的目标对象不应为空");
         Long firstTargetId = firstTarget.getId();
         System.out.println("第一次添加成功，目标ID: " + firstTargetId);
-        
+
         System.out.println("第二次添加相同基金目标: " + fundCode);
         // 第二次添加相同的基金代码，应该返回已存在的目标
         DataCollectionTarget secondTarget = dataCollectionAppService.addTargetFund(fundCode);
         assertNotNull(secondTarget, "第二次添加的目标对象不应为空");
         System.out.println("第二次调用返回，目标ID: " + secondTarget.getId());
-        
+
         // 验证两次返回的是同一个目标
         assertEquals(firstTargetId, secondTarget.getId(), "两次调用应该返回同一个目标");
         assertEquals(firstTarget.getCode(), secondTarget.getCode(), "基金代码应该相同");
@@ -74,10 +110,10 @@ class AddTargetFundTest {
     @Test
     void testAddTargetFund_InvalidCode() {
         System.out.println("\n=== 测试添加基金目标 - 无效代码场景 ===");
-        
-        String invalidFundCode = "INVALID_CODE";
+
+        String invalidFundCode = "INVALID_CODE_" + UUID.randomUUID().toString().substring(0, 8);
         System.out.println("尝试添加无效基金目标: " + invalidFundCode);
-        
+
         // 应该抛出异常，因为无法获取到有效的基金数据
         assertThrows(RuntimeException.class, () -> {
             dataCollectionAppService.addTargetFund(invalidFundCode);
@@ -88,10 +124,10 @@ class AddTargetFundTest {
     @Test
     void testAddTargetFund_EmptyCode() {
         System.out.println("\n=== 测试添加基金目标 - 空代码场景 ===");
-        
+
         String emptyFundCode = "";
         System.out.println("尝试添加空基金目标代码");
-        
+
         // 应该抛出异常，因为无法获取到有效的基金数据
         assertThrows(RuntimeException.class, () -> {
             dataCollectionAppService.addTargetFund(emptyFundCode);
@@ -102,10 +138,10 @@ class AddTargetFundTest {
     @Test
     void testAddMultipleTargetFunds() {
         System.out.println("\n=== 测试添加多个基金目标 ===");
-        
+
         String[] fundCodes = {"000001", "000011", "110011"};
         DataCollectionTarget[] targets = new DataCollectionTarget[fundCodes.length];
-        
+
         // 添加多个基金目标
         for (int i = 0; i < fundCodes.length; i++) {
             System.out.println("添加第 " + (i + 1) + " 个基金目标: " + fundCodes[i]);
@@ -114,11 +150,11 @@ class AddTargetFundTest {
             assertEquals(fundCodes[i], targets[i].getCode(), "基金代码应该匹配");
             System.out.println("成功添加: " + targets[i].getCode() + " - " + targets[i].getName());
         }
-        
+
         // 验证每个目标都是唯一的
         for (int i = 0; i < targets.length; i++) {
             for (int j = i + 1; j < targets.length; j++) {
-                assertNotEquals(targets[i].getId(), targets[j].getId(), 
+                assertNotEquals(targets[i].getId(), targets[j].getId(),
                     "不同的基金目标应该有不同的ID");
             }
         }

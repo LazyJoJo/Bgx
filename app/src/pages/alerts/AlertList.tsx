@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Space, Tag, Input, Select, Modal } from 'antd'
+import { Table, Button, Space, Tag, Input, Select, Modal, Switch, message } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
-import { fetchAlerts, deleteAlert } from '@store/slices/alertsSlice'
+import { fetchAlerts, deleteAlert, activateAlert, deactivateAlert } from '@store/slices/alertsSlice'
 import { PriceAlert } from '@/types'
 
 const { Search } = Input
@@ -13,7 +13,7 @@ const AlertList = () => {
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const { list, loading } = useAppSelector(state => state.alerts)
-  
+
   const [searchParams, setSearchParams] = useState({
     symbol: '',
     symbolType: '',
@@ -45,8 +45,23 @@ const AlertList = () => {
     try {
       await dispatch(deleteAlert(deleteModal.alertId)).unwrap()
       setDeleteModal({ visible: false, alertId: '' })
+      message.success('删除成功')
     } catch (error) {
-      console.error('删除提醒失败:', error)
+      message.error('删除失败')
+    }
+  }
+
+  const handleToggleStatus = async (record: PriceAlert) => {
+    try {
+      if (record.status === 'ACTIVE') {
+        await dispatch(deactivateAlert(record.id)).unwrap()
+        message.success('已禁用')
+      } else {
+        await dispatch(activateAlert(record.id)).unwrap()
+        message.success('已启用')
+      }
+    } catch (error) {
+      message.error('操作失败')
     }
   }
 
@@ -100,7 +115,7 @@ const AlertList = () => {
       title: '当前价格',
       dataIndex: 'currentPrice',
       key: 'currentPrice',
-      render: (price: number) => `¥${price.toFixed(2)}`
+      render: (price: number) => price != null ? `¥${price.toFixed(2)}` : '-'
     },
     {
       title: '状态',
@@ -126,18 +141,25 @@ const AlertList = () => {
       title: '操作',
       key: 'action',
       fixed: 'right' as const,
-      width: 150,
+      width: 220,
       render: (_: any, record: PriceAlert) => (
         <Space size="middle">
-          <Button 
-            type="link" 
+          <Switch
+            size="small"
+            checked={record.status === 'ACTIVE'}
+            onChange={() => handleToggleStatus(record)}
+            checkedChildren="启用"
+            unCheckedChildren="禁用"
+          />
+          <Button
+            type="link"
             icon={<EditOutlined />}
             onClick={() => navigate(`/alerts/edit/${record.id}`)}
           >
-           编辑
+            编辑
           </Button>
-          <Button 
-            type="link" 
+          <Button
+            type="link"
             danger
             icon={<DeleteOutlined />}
             onClick={() => handleDelete(record.id)}
@@ -179,9 +201,9 @@ const AlertList = () => {
             <Option value="INACTIVE">已禁用</Option>
           </Select>
         </Space>
-        
-        <Button 
-          type="primary" 
+
+        <Button
+          type="primary"
           icon={<PlusOutlined />}
           onClick={() => navigate('/alerts/create')}
         >

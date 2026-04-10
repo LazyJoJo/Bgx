@@ -2,8 +2,20 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.stock.fund.infrastructure.mapper.riskalert.RiskAlertMapper">
 
+    <!-- 自定义findById实现，只查询存在的列 -->
+    <select id="customFindById" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
+        SELECT id, user_id, symbol, symbol_type, symbol_name,
+               change_percent, current_price,
+               is_read, triggered_at, created_at, updated_at
+        FROM risk_alert
+        WHERE id = #{id}
+    </select>
+
     <select id="findByUserIdWithCursor" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
-        SELECT * FROM risk_alert
+        SELECT id, user_id, symbol, symbol_type, symbol_name,
+               change_percent, current_price,
+               is_read, triggered_at, created_at, updated_at
+        FROM risk_alert
         WHERE user_id = #{userId}
         <if test="cursor != null">
             AND triggered_at &lt; #{cursor}
@@ -13,12 +25,71 @@
     </select>
 
     <select id="findByUserIdAndSymbolAndDate" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
-        SELECT * FROM risk_alert
+        SELECT id, user_id, symbol, symbol_type, symbol_name,
+               change_percent, current_price,
+               is_read, triggered_at, created_at, updated_at
+        FROM risk_alert
         WHERE user_id = #{userId}
         AND symbol = #{symbol}
         AND triggered_at &gt;= #{date}
         ORDER BY triggered_at DESC
         LIMIT 1
+    </select>
+
+    <select id="findByUserIdAndSymbolAndAlertDateAndTimePoint" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
+        SELECT id, user_id, symbol, symbol_type, symbol_name,
+               change_percent, current_price,
+               is_read, triggered_at, created_at, updated_at
+        FROM risk_alert
+        WHERE user_id = #{userId}
+        AND symbol = #{symbol}
+        AND triggered_at::date = #{alertDate}
+        LIMIT 1
+    </select>
+
+    <select id="findByUserIdAndDateRange" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
+        SELECT id, user_id, symbol, symbol_type, symbol_name,
+               change_percent, current_price,
+               is_read, triggered_at, created_at, updated_at
+        FROM risk_alert
+        WHERE user_id = #{userId}
+        AND triggered_at::date BETWEEN #{startDate} AND #{endDate}
+        ORDER BY triggered_at DESC
+    </select>
+
+    <select id="findByUserIdWithPage" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
+        SELECT id, user_id, symbol, symbol_type, symbol_name,
+               change_percent, current_price,
+               is_read, triggered_at, created_at, updated_at
+        FROM risk_alert
+        WHERE user_id = #{userId}
+        <if test="startDate != null">
+            AND triggered_at::date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND triggered_at::date &lt;= #{endDate}
+        </if>
+        ORDER BY
+        <choose>
+            <when test="sort == 'time'">
+                triggered_at DESC
+            </when>
+            <otherwise>
+                id DESC
+            </otherwise>
+        </choose>
+        LIMIT #{size} OFFSET #{page}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(*) FROM risk_alert
+        WHERE user_id = #{userId}
+        <if test="startDate != null">
+            AND triggered_at::date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND triggered_at::date &lt;= #{endDate}
+        </if>
     </select>
 
     <select id="countUnreadByUserId" resultType="long">
