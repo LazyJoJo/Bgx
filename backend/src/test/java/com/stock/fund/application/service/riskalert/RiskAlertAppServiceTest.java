@@ -378,15 +378,15 @@ class RiskAlertAppServiceTest {
     // ==================== 处理价格提醒触发的风险测试 ====================
 
     /**
-     * 创建价格提醒的辅助方法
+     * 创建价格提醒的辅助方法（支持股票和基金）
      */
-    private PriceAlert createPriceAlert(String symbol, String alertType, Double targetPrice, Double targetChangePercent, Double basePrice) {
+    private PriceAlert createPriceAlert(String symbol, String symbolType, String alertType, Double targetPrice, Double targetChangePercent, Double basePrice) {
         PriceAlert alert = new PriceAlert();
         alert.setId(1L);
         alert.setUserId(1L);
         alert.setSymbol(symbol);
-        alert.setSymbolType("STOCK");
-        alert.setSymbolName("测试股票");
+        alert.setSymbolType(symbolType);
+        alert.setSymbolName("STOCK".equals(symbolType) ? "测试股票" : "测试基金");
         alert.setAlertType(alertType);
         alert.setTargetPrice(targetPrice);
         alert.setTargetChangePercent(targetChangePercent);
@@ -395,11 +395,25 @@ class RiskAlertAppServiceTest {
         return alert;
     }
 
+    /**
+     * 创建股票价格提醒的辅助方法
+     */
+    private PriceAlert createStockAlert(String symbol, String alertType, Double targetPrice, Double targetChangePercent, Double basePrice) {
+        return createPriceAlert(symbol, "STOCK", alertType, targetPrice, targetChangePercent, basePrice);
+    }
+
+    /**
+     * 创建基金价格提醒的辅助方法
+     */
+    private PriceAlert createFundAlert(String fundCode, String alertType, Double targetPrice, Double targetChangePercent, Double basePrice) {
+        return createPriceAlert(fundCode, "FUND", alertType, targetPrice, targetChangePercent, basePrice);
+    }
+
     @Test
     @DisplayName("处理价格提醒触发的风险 - 价格超过目标价应创建风险记录")
     void processAlertTriggeredRisk_priceAboveTarget_shouldCreateAlert() {
         // given: 设置PRICE_ABOVE提醒，目标价11.0，当前价格11.5（超过目标价）
-        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 11.0, null, null);
+        PriceAlert alert = createStockAlert("000001", "PRICE_ABOVE", 11.0, null, null);
         when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
                 any(), any(), any(), any())).thenReturn(Optional.empty());
         when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
@@ -415,7 +429,7 @@ class RiskAlertAppServiceTest {
     @DisplayName("处理价格提醒触发的风险 - 价格未超过目标价不创建记录")
     void processAlertTriggeredRisk_priceBelowTarget_shouldNotCreate() {
         // given: 设置PRICE_ABOVE提醒，目标价12.0，当前价格11.5（未超过目标价）
-        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 12.0, null, null);
+        PriceAlert alert = createStockAlert("000001", "PRICE_ABOVE", 12.0, null, null);
 
         // when: 当前价格11.5未超过目标价12.0
         riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.50"), new BigDecimal("10.95"), "14:30");
@@ -428,7 +442,7 @@ class RiskAlertAppServiceTest {
     @DisplayName("处理价格提醒触发的风险 - 价格低于目标价应创建风险记录")
     void processAlertTriggeredRisk_priceBelowTarget_shouldCreateAlert() {
         // given: 设置PRICE_BELOW提醒，目标价11.0，当前价格10.5（低于目标价）
-        PriceAlert alert = createPriceAlert("000001", "PRICE_BELOW", 11.0, null, null);
+        PriceAlert alert = createStockAlert("000001", "PRICE_BELOW", 11.0, null, null);
         when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
                 any(), any(), any(), any())).thenReturn(Optional.empty());
         when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
@@ -444,7 +458,7 @@ class RiskAlertAppServiceTest {
     @DisplayName("处理价格提醒触发的风险 - 涨跌幅超过阈值应创建风险记录")
     void processAlertTriggeredRisk_percentageChangeExceed_shouldCreateAlert() {
         // given: 设置PERCENTAGE_CHANGE提醒，阈值5%，基准价10.95，当前价格11.50（涨幅5.02%超过阈值）
-        PriceAlert alert = createPriceAlert("000001", "PERCENTAGE_CHANGE", null, 5.0, 10.95);
+        PriceAlert alert = createStockAlert("000001", "PERCENTAGE_CHANGE", null, 5.0, 10.95);
         when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
                 any(), any(), any(), any())).thenReturn(Optional.empty());
         when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
@@ -460,7 +474,7 @@ class RiskAlertAppServiceTest {
     @DisplayName("处理价格提醒触发的风险 - 涨跌幅未超阈值不创建记录")
     void processAlertTriggeredRisk_percentageChangeBelow_shouldNotCreate() {
         // given: 设置PERCENTAGE_CHANGE提醒，阈值5%，基准价10.95，当前价格11.40（涨幅4.1%未超过阈值）
-        PriceAlert alert = createPriceAlert("000001", "PERCENTAGE_CHANGE", null, 5.0, 10.95);
+        PriceAlert alert = createStockAlert("000001", "PERCENTAGE_CHANGE", null, 5.0, 10.95);
 
         // when: 涨跌幅约4.1%未超过阈值5%
         riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("11.40"), new BigDecimal("10.95"), "14:30");
@@ -473,7 +487,7 @@ class RiskAlertAppServiceTest {
     @DisplayName("处理价格提醒触发的风险 - 下午时间点应为14:30")
     void processAlertTriggeredRisk_afternoon_shouldSet1430TimePoint() {
         // given
-        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 11.0, null, null);
+        PriceAlert alert = createStockAlert("000001", "PRICE_ABOVE", 11.0, null, null);
         when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
                 any(), any(), any(), any())).thenReturn(Optional.empty());
         when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
@@ -491,7 +505,7 @@ class RiskAlertAppServiceTest {
     @DisplayName("处理价格提醒触发的风险 - 上午时间点应为11:30")
     void processAlertTriggeredRisk_morning_shouldSet1130TimePoint() {
         // given
-        PriceAlert alert = createPriceAlert("000001", "PRICE_ABOVE", 11.0, null, null);
+        PriceAlert alert = createStockAlert("000001", "PRICE_ABOVE", 11.0, null, null);
         when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
                 any(), any(), any(), any())).thenReturn(Optional.empty());
         when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
@@ -503,6 +517,106 @@ class RiskAlertAppServiceTest {
         verify(riskAlertRepository).save(argThat(riskAlert ->
             "11:30".equals(riskAlert.getTimePoint())
         ));
+    }
+
+    // ==================== 基金类型风险提醒测试 ====================
+
+    /**
+     * AC-2.1: 仅对设置了价格提醒的股票/基金产生风险数据
+     * AC-1.2: 基金类型提醒支持PRICE_ABOVE/PRICE_BELOW/PERCENTAGE_CHANGE三种类型
+     */
+
+    @Test
+    @DisplayName("【基金】处理价格提醒触发的风险 - 基金净值超过目标价应创建风险记录")
+    void processAlertTriggeredRisk_FUND_priceAboveTarget_shouldCreateAlert() {
+        // given: 设置基金PRICE_ABOVE提醒，目标净值1.5000，当前净值1.5500（超过目标价）
+        // 基金使用FUND类型，净值精度为4位小数
+        PriceAlert alert = createFundAlert("000011", "PRICE_ABOVE", 1.5000, null, null);
+        when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when: 当前净值1.5500超过目标净值1.5000
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("1.5500"), new BigDecimal("1.4800"), "14:30");
+
+        // then: 应保存风险记录，且symbolType为FUND
+        verify(riskAlertRepository).save(argThat(riskAlert ->
+            "FUND".equals(riskAlert.getSymbolType()) && "000011".equals(riskAlert.getSymbol())
+        ));
+    }
+
+    @Test
+    @DisplayName("【基金】处理价格提醒触发的风险 - 基金净值低于目标价应创建风险记录")
+    void processAlertTriggeredRisk_FUND_priceBelowTarget_shouldCreateAlert() {
+        // given: 设置基金PRICE_BELOW提醒，目标净值1.5000，当前净值1.4500（低于目标价）
+        PriceAlert alert = createFundAlert("000011", "PRICE_BELOW", 1.5000, null, null);
+        when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when: 当前净值1.4500低于目标净值1.5000
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("1.4500"), new BigDecimal("1.4800"), "14:30");
+
+        // then: 应保存风险记录
+        verify(riskAlertRepository).save(any(RiskAlert.class));
+    }
+
+    @Test
+    @DisplayName("【基金】处理价格提醒触发的风险 - 基金净值未超过目标价不创建记录")
+    void processAlertTriggeredRisk_FUND_priceAboveTarget_shouldNotCreate() {
+        // given: 设置基金PRICE_ABOVE提醒，目标净值1.5000，当前净值1.4800（未超过目标价）
+        PriceAlert alert = createFundAlert("000011", "PRICE_ABOVE", 1.5000, null, null);
+
+        // when: 当前净值1.4800未超过目标净值1.5000
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("1.4800"), new BigDecimal("1.4500"), "14:30");
+
+        // then: 不应保存
+        verify(riskAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("【基金】处理价格提醒触发的风险 - 基金涨跌幅超过阈值应创建风险记录")
+    void processAlertTriggeredRisk_FUND_percentageChangeExceed_shouldCreateAlert() {
+        // given: 设置基金PERCENTAGE_CHANGE提醒，阈值3%，基准净值1.4500，当前净值1.4935（涨幅3.0%达到阈值）
+        PriceAlert alert = createFundAlert("000011", "PERCENTAGE_CHANGE", null, 3.0, 1.4500);
+        when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when: 涨跌幅约3.0%达到阈值3%
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("1.4935"), new BigDecimal("1.4500"), "14:30");
+
+        // then: 应保存风险记录
+        verify(riskAlertRepository).save(any(RiskAlert.class));
+    }
+
+    @Test
+    @DisplayName("【基金】处理价格提醒触发的风险 - 基金涨跌幅未超阈值不创建记录")
+    void processAlertTriggeredRisk_FUND_percentageChangeBelow_shouldNotCreate() {
+        // given: 设置基金PERCENTAGE_CHANGE提醒，阈值3%，基准净值1.4500，当前净值1.4700（涨幅1.38%未达阈值）
+        PriceAlert alert = createFundAlert("000011", "PERCENTAGE_CHANGE", null, 3.0, 1.4500);
+
+        // when: 涨跌幅约1.38%未达到阈值3%
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("1.4700"), new BigDecimal("1.4500"), "14:30");
+
+        // then: 不应保存
+        verify(riskAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("【基金】处理价格提醒触发的风险 - 基金涨跌幅超过阈值（下跌）应创建风险记录")
+    void processAlertTriggeredRisk_FUND_percentageChangeExceed_downward_shouldCreateAlert() {
+        // given: 设置基金PERCENTAGE_CHANGE提醒，阈值3%，基准净值1.4500，当前净值1.4000（跌幅-3.45%超过阈值）
+        PriceAlert alert = createFundAlert("000011", "PERCENTAGE_CHANGE", null, 3.0, 1.4500);
+        when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when: 跌幅约-3.45%超过阈值3%（绝对值比较）
+        riskAlertAppService.processAlertTriggeredRisk(alert, new BigDecimal("1.4000"), new BigDecimal("1.4500"), "14:30");
+
+        // then: 应保存风险记录
+        verify(riskAlertRepository).save(any(RiskAlert.class));
     }
 
     // ==================== 日期范围查询测试 ====================
