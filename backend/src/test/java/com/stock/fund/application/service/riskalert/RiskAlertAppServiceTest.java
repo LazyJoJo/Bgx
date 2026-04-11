@@ -643,6 +643,207 @@ class RiskAlertAppServiceTest {
         assertThat(result).hasSize(2);
     }
 
+    // ==================== 基金类型风险提醒功能测试 ====================
+
+    /**
+     * 创建基金风险提醒的辅助方法
+     */
+    private RiskAlert createFundRiskAlert(String fundCode, String timePoint, double changePercent) {
+        RiskAlert alert = new RiskAlert();
+        alert.setId((long) (fundCode.hashCode() + timePoint.hashCode()));
+        alert.setUserId(1L);
+        alert.setSymbol(fundCode);
+        alert.setSymbolType("FUND");
+        alert.setSymbolName(fundCode + "基金");
+        alert.setAlertDate(LocalDate.now());
+        alert.setTimePoint(timePoint);
+        alert.setHasRisk(true);
+        alert.setChangePercent(BigDecimal.valueOf(changePercent));
+        alert.setCurrentPrice(BigDecimal.valueOf(1.5500));
+        alert.setYesterdayClose(BigDecimal.valueOf(1.4800));
+        alert.setIsRead(false);
+        alert.setTriggeredAt(LocalDateTime.now());
+        return alert;
+    }
+
+    @Test
+    @DisplayName("【基金】分页查询风险提醒 - 应返回正确分页数据")
+    void queryRiskAlerts_FUND_shouldReturnPaginatedResults() {
+        // given
+        RiskAlert fundAlert = createFundRiskAlert("000011", "14:30", 3.5);
+        RiskAlertQueryDTO query = new RiskAlertQueryDTO();
+        query.setUserId(1L);
+        query.setPage(1);
+        query.setSize(10);
+
+        when(riskAlertRepository.findByUserIdWithPage(any(RiskAlertQuery.class))).thenReturn(Arrays.asList(fundAlert));
+        when(riskAlertRepository.countByUserId(any(RiskAlertQuery.class))).thenReturn(1L);
+
+        // when
+        RiskAlertPageResponse<RiskAlert> result = riskAlertAppService.queryRiskAlerts(query);
+
+        // then
+        assertThat(result.getRecords()).hasSize(1);
+        assertThat(result.getRecords().get(0).getSymbolType()).isEqualTo("FUND");
+        assertThat(result.getRecords().get(0).getSymbol()).isEqualTo("000011");
+    }
+
+    @Test
+    @DisplayName("【基金】获取今日风险提醒 - 应正确计算基金未读数量")
+    void getTodayRiskAlerts_FUND_shouldCalculateUnreadCount() {
+        // given: 股票和基金混合场景
+        RiskAlert stockAlert = createRiskAlert("000001", "14:30", 5.0);
+        stockAlert.setIsRead(false);
+        RiskAlert fundAlert = createFundRiskAlert("000011", "14:30", 3.5);
+        fundAlert.setIsRead(false);
+        RiskAlert fundAlertRead = createFundRiskAlert("000022", "14:30", -2.0);
+        fundAlertRead.setIsRead(true);
+
+        when(riskAlertRepository.findByUserIdAndDateRange(eq(1L), any(), any()))
+                .thenReturn(Arrays.asList(stockAlert, fundAlert, fundAlertRead));
+
+        // when
+        List<RiskAlertSummaryDTO> result = riskAlertAppService.getTodayRiskAlerts(1L);
+
+        // then: 验证基金类型数据正确返回
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getItems()).hasSize(3);
+        // 验证未读数量
+        assertThat(result.get(0).getUnreadCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("【基金】获取未读数量 - 应包含基金数据")
+    void getUnreadCount_FUND_shouldIncludeFundData() {
+        // given: 返回的未读数量包含基金
+        when(riskAlertRepository.countUnreadByUserId(1L)).thenReturn(5L);
+
+        // when
+        long result = riskAlertAppService.getUnreadCount(1L);
+
+        // then
+        assertThat(result).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("【基金】标记单条已读 - 基金风险提醒应成功更新")
+    void markAsRead_FUND_shouldUpdateSuccessfully() {
+        // given: 基金风险提醒
+        RiskAlert fundAlert = createFundRiskAlert("000011", "14:30", 3.5);
+        when(riskAlertRepository.findById(fundAlert.getId())).thenReturn(Optional.of(fundAlert));
+        when(riskAlertRepository.update(any(RiskAlert.class))).thenReturn(fundAlert);
+
+        // when
+        riskAlertAppService.markAsRead(fundAlert.getId());
+
+        // then
+        verify(riskAlertRepository).update(any(RiskAlert.class));
+    }
+
+    @Test
+    @DisplayName("【基金】标记全部已读 - 应包含基金数据")
+    void markAllAsRead_FUND_shouldCallRepository() {
+        // when
+        riskAlertAppService.markAllAsRead(1L);
+
+        // then: 验证统一调用仓储
+        verify(riskAlertRepository).markAllAsRead(1L);
+    }
+
+    @Test
+    @DisplayName("【基金】删除风险提醒 - 基金风险提醒应成功删除")
+    void deleteById_FUND_shouldCallRepository() {
+        // given
+        RiskAlert fundAlert = createFundRiskAlert("000011", "14:30", 3.5);
+
+        // when
+        riskAlertAppService.deleteById(fundAlert.getId());
+
+        // then
+        verify(riskAlertRepository).deleteById(fundAlert.getId());
+    }
+
+    @Test
+    @DisplayName("【基金】获取合并风险提醒 - 应按symbol+date分组且包含基金")
+    void getMergedRiskAlerts_FUND_shouldGroupBySymbolAndDate() {
+        // given: 同一基金有多条记录（11:30和14:30）
+        RiskAlert fundAlert1130 = createFundRiskAlert("000011", "11:30", 2.0);
+        RiskAlert fundAlert1430 = createFundRiskAlert("000011", "14:30", 3.5);
+        fundAlert1130.setTriggeredAt(LocalDateTime.now().minusHours(2));
+        fundAlert1430.setTriggeredAt(LocalDateTime.now());
+
+        when(riskAlertRepository.findByUserId(eq(1L), any(), anyInt()))
+                .thenReturn(Arrays.asList(fundAlert1130, fundAlert1430));
+
+        // when
+        List<RiskAlertMergeDTO> result = riskAlertAppService.getMergedRiskAlerts(1L, null, 10);
+
+        // then: 应合并为1条
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).symbol()).isEqualTo("000011");
+        assertThat(result.get(0).symbolType()).isEqualTo("FUND");
+        assertThat(result.get(0).triggerCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("【基金】获取合并风险提醒 - 应计算基金最大涨跌幅")
+    void getMergedRiskAlerts_FUND_shouldCalculateMaxChangePercent() {
+        // given: 基金净值涨跌记录，明确设置不同triggeredAt确保排序稳定
+        RiskAlert fundAlert1 = createFundRiskAlert("000011", "11:30", 2.0);
+        fundAlert1.setTriggeredAt(LocalDateTime.now().minusHours(2)); // 较早触发
+        RiskAlert fundAlert2 = createFundRiskAlert("000011", "14:30", 3.5);
+        fundAlert2.setTriggeredAt(LocalDateTime.now()); // 较晚触发，changePercent=3.5
+
+        when(riskAlertRepository.findByUserId(eq(1L), any(), anyInt()))
+                .thenReturn(Arrays.asList(fundAlert1, fundAlert2));
+
+        // when
+        List<RiskAlertMergeDTO> result = riskAlertAppService.getMergedRiskAlerts(1L, null, 10);
+
+        // then: 最大涨跌幅应为3.5%，latestChangePercent也应为3.5（按triggeredAt最新）
+        assertThat(result.get(0).maxChangePercent()).isEqualByComparingTo(new BigDecimal("3.5"));
+        assertThat(result.get(0).latestChangePercent()).isEqualByComparingTo(new BigDecimal("3.5"));
+    }
+
+    @Test
+    @DisplayName("【基金】日期范围查询 - 应返回基金数据")
+    void getRiskAlertsByDateRange_FUND_shouldReturnFundData() {
+        // given
+        LocalDate today = LocalDate.now();
+        LocalDate yesterday = today.minusDays(1);
+
+        RiskAlert fundAlert = createFundRiskAlert("000011", "14:30", 3.5);
+        fundAlert.setAlertDate(today);
+
+        when(riskAlertRepository.findByUserIdAndDateRange(1L, yesterday, today))
+                .thenReturn(Arrays.asList(fundAlert));
+
+        // when
+        List<RiskAlertSummaryDTO> result = riskAlertAppService.getRiskAlertsByDateRange(1L, yesterday, today);
+
+        // then: 应返回包含基金数据的分组
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getItems().get(0).getSymbolType()).isEqualTo("FUND");
+    }
+
+    @Test
+    @DisplayName("【基金】获取今日风险提醒数量 - 应按symbol去重包含基金")
+    void getTodayRiskAlertCount_FUND_shouldDeduplicateBySymbol() {
+        // given: 同一基金有多条记录
+        RiskAlert fundAlert1 = createFundRiskAlert("000011", "11:30", 2.0);
+        RiskAlert fundAlert2 = createFundRiskAlert("000011", "14:30", 3.5);
+        RiskAlert stockAlert = createRiskAlert("000001", "14:30", 5.0);
+
+        when(riskAlertRepository.findByUserIdAndDateRange(eq(1L), any(), any()))
+                .thenReturn(Arrays.asList(fundAlert1, fundAlert2, stockAlert));
+
+        // when
+        int result = riskAlertAppService.getTodayRiskAlertCount(1L);
+
+        // then: 应返回2（基金000011去重为1，股票000001为1）
+        assertThat(result).isEqualTo(2);
+    }
+
     // ==================== Helper方法 ====================
 
     private RiskAlert createRiskAlert(String symbol, String timePoint, double changePercent) {

@@ -1,0 +1,27 @@
+# Test profile configuration for Testcontainers
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/stock_fund_test
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+
+  sql:
+    init:
+      mode: never
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  mapper-locations: classpath*:/mapper/**/*.xml
+
+logging:
+  level:
+    root: info
+    com.stock.fund: debug
