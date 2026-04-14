@@ -5,20 +5,20 @@ import { Page, Locator, expect } from '@playwright/test'
  */
 export class AlertListPage {
   readonly page: Page
-  
+
   // 按钮
   readonly batchSubscribeButton: Locator
   readonly createAlertButton: Locator
-  
+
   // 搜索和筛选
   readonly searchInput: Locator
   readonly symbolTypeFilter: Locator
   readonly statusFilter: Locator
-  
+
   // 表格
   readonly table: Locator
   readonly tableRows: Locator
-  
+
   // 批量订阅模态框
   readonly batchSubscribeModal: Locator
 
@@ -118,5 +118,12 @@ export class AlertListPage {
     const modal = this.page.locator('.ant-modal').filter({ hasText: /确认删除/ })
     await expect(modal).toBeVisible()
     await modal.locator('.ant-btn-default').click()
+  }
+
+  /**
+   * 截图
+   */
+  async screenshot(name: string) {
+    await this.page.screenshot({ path: `test-results/${name}.png`, fullPage: true })
   }
 }
