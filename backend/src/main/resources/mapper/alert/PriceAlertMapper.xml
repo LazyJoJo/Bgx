@@ -40,6 +40,52 @@
         LIMIT 1
     </select>
 
+    <select id="findByUserIdAndSymbolsAndSymbolType" resultMap="BaseResultMap">
+        SELECT * FROM price_alert
+        WHERE user_id = #{userId}
+          AND entity_type = #{symbolType}
+          AND entity_code IN
+        <foreach collection="symbols" item="symbol" open="(" separator="," close=")">
+            #{symbol}
+        </foreach>
+    </select>
+
+    <select id="findByUserIdAndSymbolsAndSymbolTypeAndAlertType" resultMap="BaseResultMap">
+        SELECT * FROM price_alert
+        WHERE user_id = #{userId}
+          AND entity_type = #{symbolType}
+          AND alert_type = #{alertType}
+          AND is_active = true
+          <choose>
+              <when test="symbols != null and symbols.size() > 0">
+                  AND entity_code IN
+                  <foreach collection="symbols" item="symbol" open="(" separator="," close=")">
+                      #{symbol}
+                  </foreach>
+              </when>
+              <otherwise>
+                  AND 1=0
+              </otherwise>
+          </choose>
+    </select>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO price_alert (
+            user_id, entity_code, entity_type, entity_name,
+            alert_type, threshold, target_change_percent,
+            base_price, current_value, is_active,
+            created_at, updated_at
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.userId}, #{item.symbol}, #{item.symbolType}, #{item.symbolName},
+                #{item.alertType}, #{item.targetPrice}, #{item.targetChangePercent},
+                #{item.basePrice}, #{item.currentValue}, #{item.isActive},
+                NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
     <select id="findByUserIdWithPage" resultMap="BaseResultMap">
         SELECT * FROM price_alert
         WHERE user_id = #{userId}

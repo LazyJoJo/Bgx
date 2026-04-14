@@ -458,4 +458,104 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         }
         return symbol;
     }
+
+    @Override
+    @Transactional
+    public BatchCreateRiskAlertResponse batchCreateRiskAlerts(BatchCreateRiskAlertRequest request) {
+        logger.info("开始批量创建风险提醒: userId={}, symbolType={}, symbols={}", 
+                request.getUserId(), request.getSymbolType(), request.getSymbols());
+        
+        List<RiskAlert> successList = new ArrayList<>();
+        List<BatchCreateRiskAlertResponse.FailedRiskAlert> failList = new ArrayList<>();
+        
+        if (request.getSymbols() == null || request.getSymbols().isEmpty()) {
+            logger.warn("标的列表为空");
+            return BatchCreateRiskAlertResponse.builder()
+                    .successCount(0)
+                    .failCount(0)
+                    .successList(successList)
+                    .failList(failList)
+                    .build();
+        }
+        
+        // 获取当前时间点
+        LocalDateTime now = LocalDateTime.now();
+        String timePoint = now.getHour() < 12 ? "11:30" : "14:30";
+        
+        // 遍历每个标的，检测风险并创建风险提醒
+        for (String symbol : request.getSymbols()) {
+            try {
+                // 获取当前价格
+                BigDecimal currentPrice = getCurrentPrice(symbol, request.getSymbolType());
+                if (currentPrice == null) {
+                    failList.add(BatchCreateRiskAlertResponse.FailedRiskAlert.builder()
+                            .symbol(symbol)
+                            .reason("无法获取当前价格")
+                            .build());
+                    continue;
+                }
+                
+                // 获取昨日收盘价
+                BigDecimal yesterdayClose = getYesterdayClose(symbol, request.getSymbolType());
+                if (yesterdayClose == null) {
+                    yesterdayClose = currentPrice; // 估算
+                }
+                
+                // 计算涨跌幅
+                BigDecimal changePercent = BigDecimal.ZERO;
+                if (yesterdayClose.compareTo(BigDecimal.ZERO) != 0) {
+                    changePercent = currentPrice.subtract(yesterdayClose)
+                            .divide(yesterdayClose, 4, RoundingMode.HALF_UP)
+                            .multiply(new BigDecimal("100"))
+                            .setScale(2, RoundingMode.HALF_UP);
+                }
+                
+                // 判断是否有风险（涨跌幅超过1%）
+                boolean hasRisk = Math.abs(changePercent.doubleValue()) >= 1.0;
+                
+                // 获取标的名称
+                String symbolName = fetchSymbolName(symbol, request.getSymbolType());
+                
+                // 创建风险提醒
+                RiskAlert riskAlert = new RiskAlert();
+                riskAlert.setUserId(request.getUserId());
+                riskAlert.setSymbol(symbol);
+                riskAlert.setSymbolType(request.getSymbolType());
+                riskAlert.setSymbolName(symbolName);
+                riskAlert.setAlertDate(now.toLocalDate());
+                riskAlert.setTimePoint(timePoint);
+                riskAlert.setHasRisk(hasRisk);
+                riskAlert.setChangePercent(changePercent);
+                riskAlert.setCurrentPrice(currentPrice);
+                riskAlert.setYesterdayClose(yesterdayClose);
+                riskAlert.setIsRead(false);
+                riskAlert.setTriggeredAt(now);
+                
+                RiskAlert saved = createOrUpdateRiskAlert(riskAlert);
+                successList.add(saved);
+                
+                logger.info("成功创建风险提醒: symbol={}, hasRisk={}, changePercent={}", 
+                        symbol, hasRisk, changePercent);
+                
+            } catch (Exception e) {
+                logger.error("创建风险提醒失败: symbol={}", symbol, e);
+                failList.add(BatchCreateRiskAlertResponse.FailedRiskAlert.builder()
+                        .symbol(symbol)
+                        .reason("创建失败: " + e.getMessage())
+                        .build());
+            }
+        }
+        
+        BatchCreateRiskAlertResponse response = BatchCreateRiskAlertResponse.builder()
+                .successCount(successList.size())
+                .failCount(failList.size())
+                .successList(successList)
+                .failList(failList)
+                .build();
+        
+        logger.info("批量创建风险提醒完成: 成功={}, 失败={}", 
+                response.getSuccessCount(), response.getFailCount());
+        
+        return response;
+    }
 }

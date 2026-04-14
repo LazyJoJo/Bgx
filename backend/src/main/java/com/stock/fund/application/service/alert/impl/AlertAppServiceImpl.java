@@ -1,13 +1,20 @@
 package com.stock.fund.application.service.alert.impl;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.stock.fund.application.service.DataCollectionAppService;
 import com.stock.fund.application.service.alert.AlertAppService;
@@ -69,7 +76,7 @@ public class AlertAppServiceImpl implements AlertAppService {
         logger.info("批量创建提醒: 标的数量={}, 类型={}",
                 request.getSymbols().size(), request.getSymbolType());
 
-        List<PriceAlert> successList = new ArrayList<>();
+        List<BatchCreateAlertResponse.SuccessAlert> successList = new ArrayList<>();
         List<BatchCreateAlertResponse.FailedAlert> failList = new ArrayList<>();
 
         for (String symbol : request.getSymbols()) {
@@ -87,10 +94,16 @@ public class AlertAppServiceImpl implements AlertAppService {
 
                 CreateAlertResponse response = createAlert(singleRequest);
                 if (response.isCreated()) {
-                    successList.add(response.getAlert());
+                    successList.add(BatchCreateAlertResponse.SuccessAlert.builder()
+                            .alert(response.getAlert())
+                            .status("CREATED")
+                            .build());
                 } else {
                     // 已存在，返回已有提醒也算成功
-                    successList.add(response.getAlert());
+                    successList.add(BatchCreateAlertResponse.SuccessAlert.builder()
+                            .alert(response.getAlert())
+                            .status("ALREADY_EXISTS")
+                            .build());
                 }
             } catch (Exception e) {
                 logger.error("批量创建提醒失败: symbol={}", symbol, e);
@@ -287,5 +300,206 @@ public class AlertAppServiceImpl implements AlertAppService {
             logger.error("获取实体价格失败: 代码={}, 类型={}", symbol, symbolType, e);
         }
         return null;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BatchCreateAlertResponseV2 batchCreateAlertV2(BatchCreateAlertRequestV2 request) {
+        logger.info("批量创建提醒V2: 用户ID={}, 标的数量={}, 类型={}, 提醒类型={}",
+                request.getUserId(), request.getSymbols().size(), request.getSymbolType(), request.getAlertType());
+
+        // 1. 参数校验
+        validateBatchRequestV2(request);
+
+        // 2. 批量查询已存在的提醒（一次查询代替N次）
+        List<PriceAlert> existingAlerts = priceAlertRepository
+                .findByUserIdAndSymbolsAndSymbolTypeAndAlertType(
+                        request.getUserId(),
+                        request.getSymbols(),
+                        request.getSymbolType(),
+                        request.getAlertType()
+                );
+
+        Set<String> existingSymbols = existingAlerts.stream()
+                .map(PriceAlert::getSymbol)
+                .collect(Collectors.toSet());
+
+        // 3. 过滤出需要创建的标的
+        List<String> symbolsToCreate = request.getSymbols().stream()
+                .filter(symbol -> !existingSymbols.contains(symbol))
+                .collect(Collectors.toList());
+
+        // 4. 构建批量插入的实体列表
+        List<PriceAlert> alertsToCreate = symbolsToCreate.stream()
+                .map(symbol -> buildPriceAlertV2(request, symbol))
+                .collect(Collectors.toList());
+
+        // 5. 批量插入
+        List<PriceAlert> createdAlerts = batchInsertAlerts(alertsToCreate);
+
+        // 6. 构建响应
+        List<BatchCreateAlertResponseV2.SuccessItem> successList = buildSuccessListV2(createdAlerts, existingAlerts);
+        List<BatchCreateAlertResponseV2.FailureItem> failList = buildFailureListV2(
+                request.getSymbols(), createdAlerts, existingAlerts);
+
+        return BatchCreateAlertResponseV2.builder()
+                .batchId(generateBatchId())
+                .totalCount(request.getSymbols().size())
+                .successCount(successList.size())
+                .failureCount(failList.size())
+                .successList(successList)
+                .failureList(failList)
+                .build();
+    }
+
+    @Override
+    public CheckDuplicatesResponse checkDuplicates(CheckDuplicatesRequest request) {
+        logger.info("检测重复提醒: 用户ID={}, 标的数量={}, 类型={}, 提醒类型={}",
+                request.getUserId(), request.getSymbols().size(), request.getSymbolType(), request.getAlertType());
+
+        // 批量查询已存在的提醒
+        List<PriceAlert> existingAlerts = priceAlertRepository
+                .findByUserIdAndSymbolsAndSymbolTypeAndAlertType(
+                        request.getUserId(),
+                        request.getSymbols(),
+                        request.getSymbolType(),
+                        request.getAlertType()
+                );
+
+        // 按标的分组
+        Map<String, List<PriceAlert>> alertsBySymbol = existingAlerts.stream()
+                .collect(Collectors.groupingBy(PriceAlert::getSymbol));
+
+        // 构建重复项列表
+        List<CheckDuplicatesResponse.DuplicateItem> duplicates = alertsBySymbol.entrySet().stream()
+                .map(entry -> {
+                    String symbol = entry.getKey();
+                    List<PriceAlert> alerts = entry.getValue();
+                    PriceAlert firstAlert = alerts.get(0);
+
+                    List<CheckDuplicatesResponse.ExistingAlert> existingAlertInfos = alerts.stream()
+                            .map(alert -> CheckDuplicatesResponse.ExistingAlert.builder()
+                                    .alertId(alert.getId())
+                                    .alertType(alert.getAlertType())
+                                    .targetPrice(alert.getTargetPrice())
+                                    .targetChangePercent(alert.getTargetChangePercent())
+                                    .createdAt(alert.getCreatedAt() != null ? alert.getCreatedAt().toString() : null)
+                                    .status(alert.getStatus())
+                                    .build())
+                            .collect(Collectors.toList());
+
+                    return CheckDuplicatesResponse.DuplicateItem.builder()
+                            .symbol(symbol)
+                            .symbolName(firstAlert.getSymbolName())
+                            .existingAlerts(existingAlertInfos)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        // 可创建的标的
+        Set<String> existingSymbolSet = alertsBySymbol.keySet();
+        List<String> availableSymbols = request.getSymbols().stream()
+                .filter(symbol -> !existingSymbolSet.contains(symbol))
+                .collect(Collectors.toList());
+
+        return CheckDuplicatesResponse.builder()
+                .checkedCount(request.getSymbols().size())
+                .duplicateCount(duplicates.size())
+                .duplicates(duplicates)
+                .availableSymbols(availableSymbols)
+                .build();
+    }
+
+    // 校验批量请求参数
+    private void validateBatchRequestV2(BatchCreateAlertRequestV2 request) {
+        if (request.getSymbols().size() > 100) {
+            throw new IllegalArgumentException("单次最多选择100个标的");
+        }
+
+        if ("PRICE_ABOVE".equals(request.getAlertType()) || "PRICE_BELOW".equals(request.getAlertType())) {
+            if (request.getTargetPrice() == null || request.getTargetPrice() <= 0) {
+                throw new IllegalArgumentException("价格上限/下限时，目标价格必须大于0");
+            }
+        }
+
+        if ("PERCENTAGE_CHANGE".equals(request.getAlertType())) {
+            if (request.getTargetChangePercent() == null || request.getTargetChangePercent() == 0) {
+                throw new IllegalArgumentException("涨跌幅类型时，涨跌幅不能为0");
+            }
+            if (Math.abs(request.getTargetChangePercent()) > 99) {
+                throw new IllegalArgumentException("涨跌幅超出合理范围");
+            }
+        }
+    }
+
+    // 构建PriceAlert实体
+    private PriceAlert buildPriceAlertV2(BatchCreateAlertRequestV2 request, String symbol) {
+        PriceAlert alert = new PriceAlert();
+        alert.setUserId(request.getUserId());
+        alert.setSymbol(symbol);
+        alert.setSymbolType(request.getSymbolType());
+        alert.setAlertType(request.getAlertType());
+        alert.setTargetPrice(request.getTargetPrice());
+        alert.setTargetChangePercent(request.getTargetChangePercent());
+        alert.setStatus("ACTIVE");
+        return alert;
+    }
+
+    // 批量插入提醒
+    private List<PriceAlert> batchInsertAlerts(List<PriceAlert> alerts) {
+        if (alerts == null || alerts.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return priceAlertRepository.saveAll(alerts);
+    }
+
+    // 构建成功列表
+    private List<BatchCreateAlertResponseV2.SuccessItem> buildSuccessListV2(List<PriceAlert> createdAlerts, List<PriceAlert> existingAlerts) {
+        List<BatchCreateAlertResponseV2.SuccessItem> successList = new ArrayList<>();
+
+        // 新创建的
+        for (PriceAlert alert : createdAlerts) {
+            successList.add(BatchCreateAlertResponseV2.SuccessItem.builder()
+                    .symbol(alert.getSymbol())
+                    .symbolName(alert.getSymbolName())
+                    .alertId(alert.getId())
+                    .createdAt(alert.getCreatedAt() != null ? alert.getCreatedAt().toString() : null)
+                    .build());
+        }
+
+        // 已存在的
+        for (PriceAlert alert : existingAlerts) {
+            successList.add(BatchCreateAlertResponseV2.SuccessItem.builder()
+                    .symbol(alert.getSymbol())
+                    .symbolName(alert.getSymbolName())
+                    .alertId(alert.getId())
+                    .createdAt(alert.getCreatedAt() != null ? alert.getCreatedAt().toString() : null)
+                    .build());
+        }
+
+        return successList;
+    }
+
+    // 构建失败列表
+    private List<BatchCreateAlertResponseV2.FailureItem> buildFailureListV2(
+            List<String> allSymbols, List<PriceAlert> createdAlerts, List<PriceAlert> existingAlerts) {
+
+        Set<String> successSymbols = new HashSet<>();
+        createdAlerts.forEach(a -> successSymbols.add(a.getSymbol()));
+        existingAlerts.forEach(a -> successSymbols.add(a.getSymbol()));
+
+        return allSymbols.stream()
+                .filter(symbol -> !successSymbols.contains(symbol))
+                .map(symbol -> BatchCreateAlertResponseV2.FailureItem.builder()
+                        .symbol(symbol)
+                        .reason("创建失败")
+                        .errorCode("SYSTEM_ERROR")
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    // 生成批次ID
+    private String generateBatchId() {
+        return "batch_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 }

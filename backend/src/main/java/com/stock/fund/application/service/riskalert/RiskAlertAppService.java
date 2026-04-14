@@ -95,4 +95,12 @@ public interface RiskAlertAppService {
      * @param timePoint 时间点，传入 "11:30" 或 "14:30"
      */
     void processAlertTriggeredRisk(PriceAlert alert, BigDecimal currentPrice, BigDecimal yesterdayClose, String timePoint);
+
+    /**
+     * 批量创建风险提醒
+     * 立即检测指定标的的当前风险状态并创建风险提醒记录
+     * @param request 批量创建请求
+     * @return 批量创建结果
+     */
+    BatchCreateRiskAlertResponse batchCreateRiskAlerts(BatchCreateRiskAlertRequest request);
 }

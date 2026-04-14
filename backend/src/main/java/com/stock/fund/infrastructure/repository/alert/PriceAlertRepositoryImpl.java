@@ -1,6 +1,7 @@
 package com.stock.fund.infrastructure.repository.alert;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -8,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stock.fund.domain.entity.alert.PriceAlert;
 import com.stock.fund.domain.repository.alert.PriceAlertQuery;
 import com.stock.fund.domain.repository.alert.PriceAlertRepository;
@@ -73,6 +75,40 @@ public class PriceAlertRepositoryImpl implements PriceAlertRepository {
     public Optional<PriceAlert> findByUserIdAndSymbolAndSymbolType(Long userId, String symbol, String symbolType) {
         PriceAlertPO po = priceAlertMapper.findByUserIdAndSymbolAndSymbolType(userId, symbol, symbolType);
         return po != null ? Optional.of(mapToDomainEntity(po)) : Optional.empty();
+    }
+
+    @Override
+    public List<PriceAlert> findByUserIdAndSymbolsAndSymbolType(Long userId, List<String> symbols, String symbolType) {
+        if (symbols == null || symbols.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<PriceAlertPO> pos = priceAlertMapper.findByUserIdAndSymbolsAndSymbolType(userId, symbols, symbolType);
+        return pos.stream().map(this::mapToDomainEntity).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<PriceAlert> findByUserIdAndSymbolsAndSymbolTypeAndAlertType(Long userId, List<String> symbols, String symbolType, String alertType) {
+        if (symbols == null || symbols.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<PriceAlertPO> pos = priceAlertMapper.findByUserIdAndSymbolsAndSymbolTypeAndAlertType(userId, symbols, symbolType, alertType);
+        return pos.stream().map(this::mapToDomainEntity).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<PriceAlert> batchInsert(List<PriceAlert> alerts) {
+        if (alerts == null || alerts.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 使用 MyBatis-Plus 的批量插入
+        for (PriceAlert alert : alerts) {
+            PriceAlertPO po = mapToPO(alert);
+            priceAlertMapper.insert(po);
+            alert.setId(po.getId());
+        }
+
+        return alerts;
     }
 
     @Override

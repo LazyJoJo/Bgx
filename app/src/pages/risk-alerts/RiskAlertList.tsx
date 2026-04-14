@@ -231,14 +231,16 @@ const RiskAlertList = () => {
           </h2>
           <Badge count={unreadCount} size="small" />
         </Space>
-        <Button
-          type="primary"
-          icon={<CheckCircleOutlined />}
-          onClick={handleMarkAllRead}
-          disabled={unreadCount === 0}
-        >
-          全部已读
-        </Button>
+        <Space>
+          <Button
+            type="primary"
+            icon={<CheckCircleOutlined />}
+            onClick={handleMarkAllRead}
+            disabled={unreadCount === 0}
+          >
+            全部已读
+          </Button>
+        </Space>
       </div>
 
       {loading && list.length === 0 ? (

@@ -5,7 +5,6 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  PlusOutlined,
   SettingOutlined,
   StockOutlined,
   UserOutlined
@@ -104,14 +103,6 @@ const Header = ({ collapsed, onCollapse }: HeaderProps) => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/alerts/create')}
-        >
-          创建提醒
-        </Button>
-
         <Badge count={totalAlertCount} size="small">
           <Button
             type="text"

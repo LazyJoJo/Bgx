@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 /**
@@ -42,6 +43,34 @@ public class AlertController {
             return ApiResponse.success("批量创建完成", response);
         } catch (Exception e) {
             return ApiResponse.error("批量创建提醒失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "批量创建提醒V2", description = "批量创建价格提醒（支持部分成功）")
+    @PostMapping("/batch/v2")
+    public ApiResponse<BatchCreateAlertResponseV2> batchCreateAlertV2(@Valid @RequestBody BatchCreateAlertRequestV2 request) {
+        try {
+            BatchCreateAlertResponseV2 response = alertAppService.batchCreateAlertV2(request);
+            return ApiResponse.success("批量创建完成", response);
+        } catch (IllegalArgumentException e) {
+            // 参数校验错误
+            return ApiResponse.error("参数错误: " + e.getMessage());
+        } catch (Exception e) {
+            // 系统错误，不暴露详细信息给用户
+            return ApiResponse.error("批量创建提醒失败，请稍后重试");
+        }
+    }
+
+    @Operation(summary = "检测重复提醒", description = "检测哪些标的已存在相同类型的提醒")
+    @PostMapping("/check-duplicates")
+    public ApiResponse<CheckDuplicatesResponse> checkDuplicates(@Valid @RequestBody CheckDuplicatesRequest request) {
+        try {
+            CheckDuplicatesResponse response = alertAppService.checkDuplicates(request);
+            return ApiResponse.success("检测完成", response);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error("参数错误: " + e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("检测失败，请稍后重试");
         }
     }
 

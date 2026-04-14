@@ -1,6 +1,6 @@
 import { AlertHistory, PriceAlert } from '@/types'
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
-import { alertsApi } from '@services/api/alerts'
+import { alertsApi, BatchCreateAlertRequest, BatchCreateAlertResponse } from '@services/api/alerts'
 
 interface AlertState {
   list: PriceAlert[]
@@ -8,6 +8,13 @@ interface AlertState {
   selectedAlert: PriceAlert | null
   loading: boolean
   error: string | null
+
+  // 批量创建相关状态
+  batchCreate: {
+    loading: boolean
+    result: BatchCreateAlertResponse | null
+    error: string | null
+  }
 }
 
 const initialState: AlertState = {
@@ -15,7 +22,13 @@ const initialState: AlertState = {
   history: [],
   selectedAlert: null,
   loading: false,
-  error: null
+  error: null,
+
+  batchCreate: {
+    loading: false,
+    result: null,
+    error: null
+  }
 }
 
 export const fetchAlerts = createAsyncThunk(
@@ -63,19 +76,14 @@ export const deleteAlert = createAsyncThunk(
 
 export const batchCreateAlert = createAsyncThunk(
   'alerts/batchCreateAlert',
-  async (alertData: {
-    userId: number
-    symbols: string[]
-    symbolType: string
-    symbolName?: string
-    alertType: string
-    targetPrice?: number
-    targetChangePercent?: number
-    basePrice?: number
-    status: boolean | string
-  }) => {
-    const response = await alertsApi.batchCreateAlert(alertData)
-    return response.data
+  async (alertData: BatchCreateAlertRequest, { rejectWithValue }) => {
+    try {
+      const response = await alertsApi.batchCreateAlert(alertData)
+      // apiClient拦截器已返回ApiResponse<BatchCreateAlertResponse>
+      return response.data
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || '批量创建失败')
+    }
   }
 )
 
@@ -149,6 +157,20 @@ const alertsSlice = createSlice({
         if (index !== -1) {
           state.list[index].status = 'INACTIVE'
         }
+      })
+      // 批量创建状态处理
+      .addCase(batchCreateAlert.pending, (state) => {
+        state.batchCreate.loading = true
+        state.batchCreate.error = null
+        state.batchCreate.result = null
+      })
+      .addCase(batchCreateAlert.fulfilled, (state, action) => {
+        state.batchCreate.loading = false
+        state.batchCreate.result = action.payload
+      })
+      .addCase(batchCreateAlert.rejected, (state, action) => {
+        state.batchCreate.loading = false
+        state.batchCreate.error = action.payload as string || '批量创建失败'
       })
   }
 })

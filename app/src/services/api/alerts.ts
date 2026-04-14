@@ -8,6 +8,65 @@ export interface CreateAlertResponse {
   message: string
 }
 
+// 批量创建提醒请求
+export interface BatchCreateAlertRequest {
+  userId: number
+  symbolType: 'STOCK' | 'FUND'
+  symbols: string[]
+  alertType: 'PRICE_ABOVE' | 'PRICE_BELOW' | 'PERCENTAGE_CHANGE'
+  targetPrice?: number
+  targetChangePercent?: number
+  notifyChannels?: string[]
+  remark?: string
+}
+
+// 批量创建提醒响应
+export interface BatchCreateAlertResponse {
+  batchId: string
+  totalCount: number
+  successCount: number
+  failureCount: number
+  successList: Array<{
+    symbol: string
+    symbolName: string
+    alertId: number
+    createdAt: string
+  }>
+  failureList: Array<{
+    symbol: string
+    symbolName: string
+    reason: string
+    errorCode: string
+  }>
+}
+
+// 重复检测请求
+export interface CheckDuplicatesRequest {
+  userId: number
+  symbolType: 'STOCK' | 'FUND'
+  symbols: string[]
+  alertType: 'PRICE_ABOVE' | 'PRICE_BELOW' | 'PERCENTAGE_CHANGE'
+}
+
+// 重复检测响应
+export interface CheckDuplicatesResponse {
+  checkedCount: number
+  duplicateCount: number
+  duplicates: Array<{
+    symbol: string
+    symbolName: string
+    existingAlerts: Array<{
+      alertId: number
+      alertType: string
+      targetPrice?: number
+      targetChangePercent?: number
+      createdAt: string
+      status: string
+    }>
+  }>
+  availableSymbols: string[]
+}
+
 export const alertsApi = {
   // 获取用户提醒列表（后端需要 userId，暂时用 1 作为默认值）
   getAlerts: (userId: number = 1, params?: any) =>
@@ -50,22 +109,12 @@ export const alertsApi = {
     apiClient.post<ApiResponse<string>>(`/alerts/${id}/deactivate`),
 
   // 批量创建提醒
-  batchCreateAlert: (data: {
-    userId: number
-    symbols: string[]
-    symbolType: string
-    symbolName?: string
-    alertType: string
-    targetPrice?: number
-    targetChangePercent?: number
-    basePrice?: number
-    status: boolean | string
-  }) => {
-    // 转换status为后端期望的格式
-    const backendData = {
-      ...data,
-      status: typeof data.status === 'boolean' ? (data.status ? 'ACTIVE' : 'INACTIVE') : data.status
-    }
-    return apiClient.post<ApiResponse<any>>('/alerts/batch', backendData)
+  batchCreateAlert: (data: BatchCreateAlertRequest) => {
+    return apiClient.post<ApiResponse<BatchCreateAlertResponse>>('/alerts/batch/v2', data)
+  },
+
+  // 检测重复提醒
+  checkDuplicates: (data: CheckDuplicatesRequest) => {
+    return apiClient.post<ApiResponse<CheckDuplicatesResponse>>('/alerts/check-duplicates', data)
   },
 }

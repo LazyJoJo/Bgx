@@ -39,3 +39,7 @@ target/
 # SSL Keystore files
 *.p12
 *.jks
+
+.qwen
+QWEN.md
+.kilo*

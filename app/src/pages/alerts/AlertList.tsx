@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Table, Button, Space, Tag, Input, Select, Modal, Switch, message } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SendOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
 import { fetchAlerts, deleteAlert, activateAlert, deactivateAlert } from '@store/slices/alertsSlice'
 import { PriceAlert } from '@/types'
+import BatchSubscribeModal from '@components/risk-alerts/BatchSubscribeModal'
 
 const { Search } = Input
 const { Option } = Select
@@ -24,6 +25,13 @@ const AlertList = () => {
     visible: false,
     alertId: ''
   })
+  const [batchSubscribeVisible, setBatchSubscribeVisible] = useState(false)
+
+  const handleBatchSubscribeSuccess = () => {
+    // 批量订阅成功后刷新数据
+    dispatch(fetchAlerts(searchParams))
+    message.success('批量订阅成功，已添加风险提醒监控')
+  }
 
   useEffect(() => {
     dispatch(fetchAlerts(searchParams))
@@ -202,13 +210,22 @@ const AlertList = () => {
           </Select>
         </Space>
 
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/alerts/create')}
-        >
-          创建提醒
-        </Button>
+        <Space>
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            onClick={() => setBatchSubscribeVisible(true)}
+          >
+            批量订阅
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/alerts/create')}
+          >
+            创建提醒
+          </Button>
+        </Space>
       </div>
 
       <Table
@@ -235,6 +252,13 @@ const AlertList = () => {
       >
         <p>确定要删除这个提醒吗？此操作不可撤销。</p>
       </Modal>
+
+      {/* 批量订阅模态框 */}
+      <BatchSubscribeModal
+        visible={batchSubscribeVisible}
+        onClose={() => setBatchSubscribeVisible(false)}
+        onSuccess={handleBatchSubscribeSuccess}
+      />
     </div>
   )
 }

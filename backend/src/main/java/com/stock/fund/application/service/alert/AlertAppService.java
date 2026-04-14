@@ -18,11 +18,25 @@ public interface AlertAppService {
     CreateAlertResponse createAlert(CreateAlertRequest request);
 
     /**
-     * 批量创建提醒
+     * 批量创建提醒（优化版）
      * @param request 批量创建请求
      * @return 批量创建结果
      */
     BatchCreateAlertResponse batchCreateAlert(BatchCreateAlertRequest request);
+
+    /**
+     * 批量创建提醒V2（匹配新API契约）
+     * @param request 批量创建请求V2
+     * @return 批量创建结果V2
+     */
+    BatchCreateAlertResponseV2 batchCreateAlertV2(BatchCreateAlertRequestV2 request);
+
+    /**
+     * 检测重复提醒
+     * @param request 重复检测请求
+     * @return 重复检测结果
+     */
+    CheckDuplicatesResponse checkDuplicates(CheckDuplicatesRequest request);
 
     /**
      * 更新提醒
