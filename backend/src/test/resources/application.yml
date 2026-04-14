@@ -1,24 +1,19 @@
-# Test configuration - H2 in-memory database
+# Test configuration - use real PostgreSQL database
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_SCHEMA=public
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-
-  h2:
-    console:
-      enabled: true
+    url: jdbc:postgresql://localhost:5432/stock_fund_db
+    username: postgres
+    password: 168168
+    driver-class-name: org.postgresql.Driver
 
   sql:
     init:
-      mode: always
-      schema-locations: classpath:schema.sql
-      data-locations: classpath:data.sql
+      mode: never  # Don't run schema.sql, use existing database
 
   jpa:
     hibernate:
       ddl-auto: none
+    show-sql: false
 
 mybatis-plus:
   configuration:
@@ -29,4 +24,4 @@ mybatis-plus:
 logging:
   level:
     root: info
-    com.stock.fund: debug
+    com.stock.fund: warn

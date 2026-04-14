@@ -1,9 +1,9 @@
-# Test profile configuration for Testcontainers
+# Test profile configuration
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/stock_fund_test
-    username: test
-    password: test
+    url: jdbc:postgresql://localhost:5432/stock_fund_db
+    username: postgres
+    password: 168168
     driver-class-name: org.postgresql.Driver
 
   sql:
@@ -12,8 +12,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: none
+    show-sql: false
 
 mybatis-plus:
   configuration:
@@ -23,5 +23,18 @@ mybatis-plus:
 
 logging:
   level:
-    root: info
-    com.stock.fund: debug
+    root: warn
+    com.stock.fund: warn
+
+# 调度器配置
+data:
+  collection:
+    schedule:
+      alert-check-cron: "0 0 0 31 2 ?"
+      stock-basic-cron: "0 0 0 31 2 ?"
+      fund-basic-cron: "0 0 0 31 2 ?"
+      stock-quote-cron: "0 0 0 31 2 ?"
+      fund-quote-cron: "0 0 0 31 2 ?"
+      daily-collection-cron: "0 0 0 31 2 ?"
+      risk-alert-1130-cron: "0 0 0 31 2 ?"
+      risk-alert-1430-cron: "0 0 0 31 2 ?"

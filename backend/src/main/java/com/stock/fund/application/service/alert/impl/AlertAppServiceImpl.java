@@ -278,10 +278,10 @@ public class AlertAppServiceImpl implements AlertAppService {
         try {
             if ("STOCK".equals(symbolType)) {
                 var stockQuote = dataCollectionAppService.collectStockQuote(symbol);
-                return stockQuote != null ? stockQuote.getClose() : null;
+                return stockQuote != null ? stockQuote.getClose().doubleValue() : null;
             } else if ("FUND".equals(symbolType)) {
                 var fundQuote = dataCollectionAppService.collectFundQuote(symbol);
-                return fundQuote != null ? fundQuote.getNav() : null;
+                return fundQuote != null ? fundQuote.getNav().doubleValue() : null;
             }
         } catch (Exception e) {
             logger.error("获取实体价格失败: 代码={}, 类型={}", symbol, symbolType, e);

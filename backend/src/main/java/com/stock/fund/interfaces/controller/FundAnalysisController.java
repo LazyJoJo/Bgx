@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import java.math.BigDecimal;
 import java.util.HashMap;
 
 @RestController
@@ -175,9 +176,10 @@ public class FundAnalysisController {
             
             for (FundQuote quote : quotes) {
                 if (quote.getChangePercent() != null) {
-                    if (quote.getChangePercent() > 0) {
+                    int cmp = quote.getChangePercent().compareTo(BigDecimal.ZERO);
+                    if (cmp > 0) {
                         risingCount++;
-                    } else if (quote.getChangePercent() < 0) {
+                    } else if (cmp < 0) {
                         fallingCount++;
                     } else {
                         flatCount++;

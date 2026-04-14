@@ -4,6 +4,8 @@ import com.stock.fund.domain.entity.StockQuote;
 import com.stock.fund.domain.entity.FundQuote;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+
 /**
  * 风险提醒领域服务
  * 负责涨跌幅计算逻辑和阈值判断
@@ -34,6 +36,16 @@ public class RiskAlertDomainService {
      */
     public boolean shouldTriggerAlert(double changePercent) {
         return Math.abs(changePercent) >= RISK_ALERT_THRESHOLD;
+    }
+
+    /**
+     * 根据BigDecimal涨跌幅判断是否触发风险提醒
+     */
+    public boolean shouldTriggerAlert(BigDecimal changePercent) {
+        if (changePercent == null) {
+            return false;
+        }
+        return shouldTriggerAlert(changePercent.doubleValue());
     }
 
     /**
