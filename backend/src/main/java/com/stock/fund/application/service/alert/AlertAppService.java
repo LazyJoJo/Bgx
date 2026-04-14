@@ -18,6 +18,13 @@ public interface AlertAppService {
     CreateAlertResponse createAlert(CreateAlertRequest request);
 
     /**
+     * 统一创建提醒（支持单个或批量）
+     * @param request 创建请求
+     * @return 统一创建结果
+     */
+    AlertCreateResponse createAlertUnified(AlertCreateRequest request);
+
+    /**
      * 批量创建提醒（优化版）
      * @param request 批量创建请求
      * @return 批量创建结果

@@ -35,6 +35,19 @@ public class AlertController {
         }
     }
 
+    @Operation(summary = "统一创建提醒", description = "创建新的价格提醒，支持单个或批量标的，自动适配")
+    @PostMapping("/unified")
+    public ApiResponse<AlertCreateResponse> createAlertUnified(@Valid @RequestBody AlertCreateRequest request) {
+        try {
+            AlertCreateResponse response = alertAppService.createAlertUnified(request);
+            return ApiResponse.success("创建完成", response);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error("参数错误: " + e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("创建提醒失败，请稍后重试");
+        }
+    }
+
     @Operation(summary = "批量创建提醒", description = "批量创建价格提醒")
     @PostMapping("/batch")
     public ApiResponse<BatchCreateAlertResponse> batchCreateAlert(@RequestBody BatchCreateAlertRequest request) {
