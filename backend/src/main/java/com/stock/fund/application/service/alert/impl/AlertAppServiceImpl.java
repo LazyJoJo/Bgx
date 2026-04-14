@@ -19,8 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.stock.fund.application.service.DataCollectionAppService;
 import com.stock.fund.application.service.alert.AlertAppService;
 import com.stock.fund.application.service.alert.dto.*;
+import com.stock.fund.domain.entity.DataCollectionTarget;
 import com.stock.fund.domain.entity.alert.AlertHistory;
 import com.stock.fund.domain.entity.alert.PriceAlert;
+import com.stock.fund.domain.repository.DataCollectionTargetRepository;
 import com.stock.fund.domain.repository.alert.AlertHistoryRepository;
 import com.stock.fund.domain.repository.alert.PriceAlertQuery;
 import com.stock.fund.domain.repository.alert.PriceAlertRepository;
@@ -38,6 +40,9 @@ public class AlertAppServiceImpl implements AlertAppService {
 
     @Autowired
     private DataCollectionAppService dataCollectionAppService;
+
+    @Autowired
+    private DataCollectionTargetRepository dataCollectionTargetRepository;
 
     @Override
     public CreateAlertResponse createAlert(CreateAlertRequest request) {
@@ -264,6 +269,11 @@ public class AlertAppServiceImpl implements AlertAppService {
         alert.setTargetChangePercent(request.getTargetChangePercent());
         alert.setBasePrice(request.getBasePrice());
         alert.setStatus(request.getEnabled() != null && request.getEnabled() ? "ACTIVE" : "INACTIVE");
+
+        // 根据symbol查询标的名称
+        dataCollectionTargetRepository.findByCode(symbol)
+                .ifPresent(target -> alert.setSymbolName(target.getName()));
+
         return alert;
     }
 
@@ -638,6 +648,11 @@ public class AlertAppServiceImpl implements AlertAppService {
         alert.setTargetPrice(request.getTargetPrice());
         alert.setTargetChangePercent(request.getTargetChangePercent());
         alert.setStatus("ACTIVE");
+
+        // 根据symbol查询标的名称
+        dataCollectionTargetRepository.findByCode(symbol)
+                .ifPresent(target -> alert.setSymbolName(target.getName()));
+
         return alert;
     }
 

@@ -13,6 +13,7 @@ export interface BatchCreateAlertRequest {
   userId: number
   symbolType: 'STOCK' | 'FUND'
   symbols: string[]
+  symbolNames?: string[]
   alertType: 'PRICE_ABOVE' | 'PRICE_BELOW' | 'PERCENTAGE_CHANGE'
   targetPrice?: number
   targetChangePercent?: number
@@ -101,12 +102,12 @@ export const alertsApi = {
   },
 
   // 激活提醒
-  activateAlert: (id: string) => 
-    apiClient.post<ApiResponse<string>>(`/alerts/${id}/activate`),
+  activateAlert: (id: string) =>
+    apiClient.patch<ApiResponse<string>>(`/alerts/${id}/activate`),
 
   // 停用提醒
   deactivateAlert: (id: string) =>
-    apiClient.post<ApiResponse<string>>(`/alerts/${id}/deactivate`),
+    apiClient.patch<ApiResponse<string>>(`/alerts/${id}/deactivate`),
 
   // 批量创建提醒
   batchCreateAlert: (data: BatchCreateAlertRequest) => {
