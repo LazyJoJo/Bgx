@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Form, Input, Select, InputNumber, Button, Card, Space, message,
-  Switch, Radio, Spin, Tag, Modal, List, Typography, Result, Divider
+  Switch, Radio, Spin, Tag, Modal, List, Typography, Result, Divider, Alert
 } from 'antd'
 import {
   ArrowLeftOutlined, SaveOutlined,
@@ -29,6 +29,7 @@ interface SearchResult {
 }
 
 type CreateMode = 'single' | 'batch'
+type ConfigMode = 'quick' | 'custom'
 type SymbolType = 'STOCK' | 'FUND' | null
 
 // 批量创建结果类型
@@ -53,6 +54,7 @@ const AlertCreate = () => {
     const mode = searchParams.get('mode')
     return mode === 'batch' ? 'batch' : 'single'
   })
+  const [configMode, setConfigMode] = useState<ConfigMode>('custom')
 
   // 批量模式专用状态
   const [symbolType, setSymbolType] = useState<SymbolType>(createMode === 'batch' ? null : 'STOCK')
@@ -109,6 +111,20 @@ const AlertCreate = () => {
     form.resetFields(['symbol', 'symbols', 'symbolType'])
     setSearchResults([])
     setSelectedSymbols([])
+  }
+
+  // 快速/自定义模式切换
+  const handleConfigModeChange = (e: any) => {
+    const newMode = e.target.value as ConfigMode
+    setConfigMode(newMode)
+    if (newMode === 'quick') {
+      // 快速模式：固定为涨跌幅模式，默认1%
+      setAlertType('PERCENTAGE_CHANGE')
+      form.setFieldsValue({
+        alertType: 'PERCENTAGE_CHANGE',
+        targetChangePercent: 1.0
+      })
+    }
   }
 
   // 批量模式：标的类型选择
@@ -255,6 +271,10 @@ const AlertCreate = () => {
     try {
       const userId = Number(localStorage.getItem('userId')) || 1
 
+      // 快速模式固定使用涨跌幅1%
+      const effectiveAlertType = configMode === 'quick' ? 'PERCENTAGE_CHANGE' : values.alertType
+      const effectiveTargetChangePercent = configMode === 'quick' ? 1.0 : values.targetChangePercent
+
       if (createMode === 'batch' && values.symbols) {
         // 批量创建模式
         const symbols = Array.isArray(values.symbols) ? values.symbols : []
@@ -263,9 +283,9 @@ const AlertCreate = () => {
           userId,
           symbols,
           symbolType: symbolType || values.symbolType,
-          alertType: values.alertType,
-          targetPrice: values.alertType === 'PERCENTAGE_CHANGE' ? undefined : values.targetPrice,
-          targetChangePercent: values.alertType === 'PERCENTAGE_CHANGE' ? values.targetChangePercent : undefined
+          alertType: effectiveAlertType,
+          targetPrice: effectiveAlertType === 'PERCENTAGE_CHANGE' ? undefined : values.targetPrice,
+          targetChangePercent: effectiveAlertType === 'PERCENTAGE_CHANGE' ? effectiveTargetChangePercent : undefined
         }
 
         // 执行批量创建
@@ -291,9 +311,9 @@ const AlertCreate = () => {
           userId,
           symbol: values.symbol,
           symbolType: values.symbolType,
-          alertType: values.alertType,
-          targetPrice: values.alertType === 'PERCENTAGE_CHANGE' ? undefined : values.targetPrice,
-          targetChangePercent: values.alertType === 'PERCENTAGE_CHANGE' ? values.targetChangePercent : undefined,
+          alertType: effectiveAlertType,
+          targetPrice: effectiveAlertType === 'PERCENTAGE_CHANGE' ? undefined : values.targetPrice,
+          targetChangePercent: effectiveAlertType === 'PERCENTAGE_CHANGE' ? effectiveTargetChangePercent : undefined,
           basePrice: values.basePrice,
           status: values.status ? 'ACTIVE' : 'INACTIVE'
         }
@@ -409,11 +429,33 @@ const AlertCreate = () => {
               onChange={handleModeChange}
               optionType="button"
               buttonStyle="solid"
+              style={{ marginRight: 16 }}
             >
               <Radio.Button value="single">单选模式</Radio.Button>
               <Radio.Button value="batch">批量模式</Radio.Button>
             </Radio.Group>
+
+            <Radio.Group
+              value={configMode}
+              onChange={handleConfigModeChange}
+              optionType="button"
+              buttonStyle="outline"
+            >
+              <Radio.Button value="quick">快速模式</Radio.Button>
+              <Radio.Button value="custom">自定义模式</Radio.Button>
+            </Radio.Group>
           </div>
+        )}
+
+        {/* 快速模式说明 */}
+        {configMode === 'quick' && createMode === 'batch' && (
+          <Alert
+            message="快速订阅说明"
+            description="选择需要监控的股票或基金，系统将在每个工作日的11:30和14:30自动检测涨跌幅，超过1%时发送风险提醒。"
+            type="info"
+            showIcon
+            style={{ marginBottom: 24 }}
+          />
         )}
 
         <Form
@@ -539,19 +581,32 @@ const AlertCreate = () => {
             </Form.Item>
           )}
 
-          <Form.Item
-            name="alertType"
-            label={createMode === 'batch' ? '3. 提醒类型' : '提醒类型'}
-            rules={[{ required: true, message: '请选择提醒类型' }]}
-          >
-            <Select placeholder="请选择提醒类型" onChange={handleAlertTypeChange}>
-              <Option value="PRICE_ABOVE">价格超过</Option>
-              <Option value="PRICE_BELOW">价格低于</Option>
-              <Option value="PERCENTAGE_CHANGE">涨跌幅</Option>
-            </Select>
-          </Form.Item>
+          {configMode === 'custom' && (
+            <Form.Item
+              name="alertType"
+              label={createMode === 'batch' ? '3. 提醒类型' : '提醒类型'}
+              rules={[{ required: true, message: '请选择提醒类型' }]}
+            >
+              <Select placeholder="请选择提醒类型" onChange={handleAlertTypeChange}>
+                <Option value="PRICE_ABOVE">价格超过</Option>
+                <Option value="PRICE_BELOW">价格低于</Option>
+                <Option value="PERCENTAGE_CHANGE">涨跌幅</Option>
+              </Select>
+            </Form.Item>
+          )}
 
-          {alertType !== 'PERCENTAGE_CHANGE' && (
+          {configMode === 'quick' && (
+            <Form.Item
+              label={createMode === 'batch' ? '3. 提醒类型' : '提醒类型'}
+            >
+              <Tag color="orange">涨跌幅 1%</Tag>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                快速模式：自动检测涨跌幅超过1%时发送提醒
+              </Text>
+            </Form.Item>
+          )}
+
+          {configMode === 'custom' && alertType !== 'PERCENTAGE_CHANGE' && (
             <Form.Item
               name="targetPrice"
               label={createMode === 'batch' ? '4. 目标价格' : '目标价格'}
@@ -573,7 +628,7 @@ const AlertCreate = () => {
             </Form.Item>
           )}
 
-          {alertType === 'PERCENTAGE_CHANGE' && (
+          {configMode === 'custom' && alertType === 'PERCENTAGE_CHANGE' && (
             <Form.Item
               name="targetChangePercent"
               label={createMode === 'batch' ? '4. 目标涨跌幅(%)' : '目标涨跌幅(%)'}
@@ -606,11 +661,16 @@ const AlertCreate = () => {
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-                {isEdit ? '更新提醒' : (createMode === 'batch' ? '批量创建提醒' : '创建提醒')}
+                {isEdit ? '更新提醒' : (
+                  configMode === 'quick' ? '一键订阅' :
+                  (createMode === 'batch' ? '批量创建提醒' : '创建提醒')
+                )}
               </Button>
-              <Button onClick={() => form.resetFields()}>
-                重置
-              </Button>
+              {configMode !== 'quick' && (
+                <Button onClick={() => form.resetFields()}>
+                  重置
+                </Button>
+              )}
             </Space>
           </Form.Item>
         </Form>

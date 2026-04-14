@@ -33,6 +33,7 @@ function App() {
                 <Route path="/funds" element={<FundList />} />
                 <Route path="/fund-analysis" element={<FundAnalysis />} />
                 <Route path="/alerts" element={<AlertList />} />
+                <Route path="/alerts/edit/:id" element={<AlertCreate />} />
                 <Route path="/alerts/create" element={<AlertCreate />} />
                 <Route path="/risk-alerts" element={<RiskAlertList />} />
               </Routes>
