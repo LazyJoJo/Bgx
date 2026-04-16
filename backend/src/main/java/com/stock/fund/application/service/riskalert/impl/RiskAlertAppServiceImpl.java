@@ -1,13 +1,10 @@
 package com.stock.fund.application.service.riskalert.impl;
 
-import com.stock.fund.application.service.alert.AlertAppService;
 import com.stock.fund.application.service.riskalert.RiskAlertAppService;
 import com.stock.fund.application.service.riskalert.dto.*;
 import com.stock.fund.domain.entity.Fund;
-import com.stock.fund.domain.entity.FundQuote;
 import com.stock.fund.domain.entity.Stock;
-import com.stock.fund.domain.entity.StockQuote;
-import com.stock.fund.domain.entity.alert.PriceAlert;
+import com.stock.fund.domain.entity.subscription.UserSubscription;
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
 import com.stock.fund.domain.repository.FundQuoteRepository;
 import com.stock.fund.domain.repository.FundRepository;
@@ -15,6 +12,7 @@ import com.stock.fund.domain.repository.RiskAlertQuery;
 import com.stock.fund.domain.repository.RiskAlertRepository;
 import com.stock.fund.domain.repository.StockQuoteRepository;
 import com.stock.fund.domain.repository.StockRepository;
+import com.stock.fund.domain.repository.subscription.UserSubscriptionRepository;
 import com.stock.fund.domain.service.riskalert.RiskAlertDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +48,7 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
     private FundRepository fundRepository;
 
     @Autowired
-    private AlertAppService alertAppService;
+    private UserSubscriptionRepository userSubscriptionRepository;
 
     @Autowired
     private RiskAlertDomainService riskAlertDomainService;
@@ -222,28 +220,28 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         logger.info("开始风险提醒检测, timePoint={}", timePoint);
         LocalDateTime now = LocalDateTime.now();
 
-        // 检查所有用户的价格提醒
-        List<PriceAlert> activeAlerts = alertAppService.getUserActiveAlerts(1L); // 默认用户
+        // 检查所有激活的订阅
+        List<UserSubscription> activeSubscriptions = userSubscriptionRepository.findActiveSubscriptions();
 
-        for (PriceAlert alert : activeAlerts) {
+        for (UserSubscription subscription : activeSubscriptions) {
             try {
                 // 获取当前价格
-                BigDecimal currentPrice = getCurrentPrice(alert.getSymbol(), alert.getSymbolType());
+                BigDecimal currentPrice = getCurrentPrice(subscription.getSymbol(), subscription.getSymbolType());
                 if (currentPrice == null) {
                     continue;
                 }
 
                 // 获取昨日收盘价
-                BigDecimal yesterdayClose = getYesterdayClose(alert.getSymbol(), alert.getSymbolType());
+                BigDecimal yesterdayClose = getYesterdayClose(subscription.getSymbol(), subscription.getSymbolType());
                 if (yesterdayClose == null) {
                     yesterdayClose = currentPrice; // 估算
                 }
 
-                // 处理风险（内部使用 alert.shouldTrigger() 判断）
-                processAlertTriggeredRisk(alert, currentPrice, yesterdayClose, timePoint);
+                // 处理风险（根据订阅的 targetChangePercent 判断）
+                processSubscriptionRisk(subscription, currentPrice, yesterdayClose, timePoint);
             } catch (Exception e) {
-                logger.error("检查提醒失败: symbol={}, type={}",
-                        alert.getSymbol(), alert.getSymbolType(), e);
+                logger.error("检查订阅风险失败: symbol={}, type={}",
+                        subscription.getSymbol(), subscription.getSymbolType(), e);
             }
         }
 
@@ -398,25 +396,29 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
     @Override
     @Transactional
-    public void processAlertTriggeredRisk(PriceAlert alert, BigDecimal currentPrice, BigDecimal yesterdayClose, String timePoint) {
-        logger.info("处理价格提醒触发的风险: alertId={}, symbol={}, currentPrice={}, timePoint={}",
-                alert.getId(), alert.getSymbol(), currentPrice, timePoint);
-
-        // 使用用户设置的 PriceAlert 判断是否触发
-        boolean hasRisk = alert.shouldTrigger(currentPrice.doubleValue());
-
-        if (!hasRisk) {
-            logger.debug("价格未达到提醒条件，不创建风险记录: symbol={}, currentPrice={}", alert.getSymbol(), currentPrice);
-            return;
-        }
+    public void processSubscriptionRisk(UserSubscription subscription, BigDecimal currentPrice, BigDecimal yesterdayClose, String timePoint) {
+        logger.info("处理订阅触发的风险: subscriptionId={}, symbol={}, currentPrice={}, timePoint={}",
+                subscription.getId(), subscription.getSymbol(), currentPrice, timePoint);
 
         // 计算涨跌幅（用于记录）- 2位小数
         BigDecimal changePercent = BigDecimal.ZERO;
+        boolean hasRisk = false;
         if (yesterdayClose != null && yesterdayClose.compareTo(BigDecimal.ZERO) != 0) {
             changePercent = currentPrice.subtract(yesterdayClose)
                     .divide(yesterdayClose, 4, RoundingMode.HALF_UP)
                     .multiply(new BigDecimal("100"))
                     .setScale(2, RoundingMode.HALF_UP);
+
+            // 使用订阅的 targetChangePercent 判断是否触发风险
+            if (subscription.getTargetChangePercent() != null) {
+                hasRisk = Math.abs(changePercent.doubleValue()) >= subscription.getTargetChangePercent();
+            }
+        }
+
+        if (!hasRisk) {
+            logger.debug("价格未达到提醒条件，不创建风险记录: symbol={}, currentPrice={}, changePercent={}",
+                    subscription.getSymbol(), currentPrice, changePercent);
+            return;
         }
 
         // 使用传入的时间点
@@ -424,9 +426,9 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
         // 创建风险记录
         RiskAlert riskAlert = new RiskAlert();
-        riskAlert.setUserId(alert.getUserId());
-        riskAlert.setSymbol(alert.getSymbol());
-        riskAlert.setSymbolType(alert.getSymbolType());
+        riskAlert.setUserId(subscription.getUserId());
+        riskAlert.setSymbol(subscription.getSymbol());
+        riskAlert.setSymbolType(subscription.getSymbolType());
         riskAlert.setAlertDate(now.toLocalDate());
         riskAlert.setTimePoint(timePoint);
         riskAlert.setHasRisk(true);
@@ -434,10 +436,10 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         riskAlert.setCurrentPrice(currentPrice);
         riskAlert.setYesterdayClose(yesterdayClose);
 
-        // 获取标的名称（优先使用 PriceAlert 中已保存的名称）
-        String symbolName = alert.getSymbolName();
+        // 获取标的名称（优先使用订阅中已保存的名称）
+        String symbolName = subscription.getSymbolName();
         if (symbolName == null || symbolName.isEmpty()) {
-            symbolName = fetchSymbolName(alert.getSymbol(), alert.getSymbolType());
+            symbolName = fetchSymbolName(subscription.getSymbol(), subscription.getSymbolType());
         }
         riskAlert.setSymbolName(symbolName);
 

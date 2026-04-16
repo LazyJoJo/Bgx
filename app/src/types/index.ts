@@ -179,3 +179,16 @@ export interface NotificationUnreadCount {
     [key: string]: number | undefined
   }
 }
+
+// 搜索结果类型
+export interface SearchResult {
+  id: number
+  code: string
+  name: string
+  type: 'STOCK' | 'FUND'
+  market?: string
+  active?: boolean
+}
+
+// 标的类型
+export type SymbolType = 'STOCK' | 'FUND'

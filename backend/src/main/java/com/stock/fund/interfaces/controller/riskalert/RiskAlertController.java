@@ -1,18 +1,19 @@
 package com.stock.fund.interfaces.controller.riskalert;
 
-import com.stock.fund.application.service.alert.AlertAppService;
-import com.stock.fund.application.service.alert.dto.BatchCreateAlertRequest;
-import com.stock.fund.application.service.alert.dto.BatchCreateAlertResponse;
 import com.stock.fund.application.service.riskalert.RiskAlertAppService;
 import com.stock.fund.application.service.riskalert.dto.BatchSubscribeRequest;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertMergeDTO;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertSummaryDTO;
+import com.stock.fund.application.service.subscription.SubscriptionAppService;
+import com.stock.fund.application.service.subscription.dto.BatchCreateSubscriptionRequest;
+import com.stock.fund.application.service.subscription.dto.BatchCreateSubscriptionResponse;
 import com.stock.fund.interfaces.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -23,9 +24,9 @@ public class RiskAlertController {
 
     @Autowired
     private RiskAlertAppService riskAlertAppService;
-    
+
     @Autowired
-    private AlertAppService alertAppService;
+    private SubscriptionAppService subscriptionAppService;
 
     // 默认用户ID（后续可扩展为从认证获取）
     private Long getUserId() {
@@ -152,37 +153,29 @@ public class RiskAlertController {
     }
 
     /**
-     * 批量订阅标的（批量创建价格提醒以启用风险提醒）
-     * 用户选择股票或基金类型后，批量创建价格提醒，系统会自动检测并生成风险提醒
+     * 批量订阅标的（批量创建订阅以启用风险提醒）
+     * 用户选择股票或基金类型后，批量创建订阅，系统会自动检测并生成风险提醒
      */
-    @Operation(summary = "批量订阅标的", description = "批量创建价格提醒以启用风险提醒监控")
+    @Operation(summary = "批量订阅标的", description = "批量创建订阅以启用风险提醒监控")
     @PostMapping("/subscribe")
-    public ApiResponse<BatchCreateAlertResponse> batchSubscribe(@RequestBody BatchSubscribeRequest request) {
+    public ApiResponse<BatchCreateSubscriptionResponse> batchSubscribe(@RequestBody BatchSubscribeRequest request) {
         try {
             // 设置默认值：涨跌幅监控
-            if (request.getAlertType() == null) {
-                request.setAlertType("PERCENTAGE_CHANGE");
+            Double targetChangePercent = request.getTargetChangePercent();
+            if (targetChangePercent == null) {
+                targetChangePercent = 1.0; // 默认1%涨跌幅
             }
-            if (request.getTargetChangePercent() == null) {
-                request.setTargetChangePercent(1.0); // 默认1%涨跌幅
-            }
-            if (request.getStatus() == null) {
-                request.setStatus(true);
-            }
-            
-            // 转换为价格提醒的批量创建请求
-            BatchCreateAlertRequest createRequest = new BatchCreateAlertRequest();
+
+            // 转换为订阅的批量创建请求
+            BatchCreateSubscriptionRequest createRequest = new BatchCreateSubscriptionRequest();
             createRequest.setUserId(request.getUserId());
             createRequest.setSymbolType(request.getSymbolType());
             createRequest.setSymbols(request.getSymbols());
-            createRequest.setAlertType(request.getAlertType());
-            createRequest.setTargetPrice(request.getTargetPrice());
-            createRequest.setTargetChangePercent(request.getTargetChangePercent());
-            createRequest.setBasePrice(request.getBasePrice());
-            createRequest.setStatus(request.getStatus());
-            
-            // 调用现有的批量创建方法
-            BatchCreateAlertResponse response = alertAppService.batchCreateAlert(createRequest);
+            createRequest.setTargetChangePercent(BigDecimal.valueOf(targetChangePercent));
+            createRequest.setEnabled(true);
+
+            // 调用订阅服务的批量创建方法
+            BatchCreateSubscriptionResponse response = subscriptionAppService.batchCreateSubscription(createRequest);
             return ApiResponse.success("批量订阅完成", response);
         } catch (Exception e) {
             return ApiResponse.error("批量订阅失败: " + e.getMessage());

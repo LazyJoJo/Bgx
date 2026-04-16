@@ -73,10 +73,10 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
             onClick: () => navigate('/funds')
           },
           {
-            key: 'alerts',
+            key: 'subscriptions',
             icon: <BellOutlined />,
-            label: '提醒设置',
-            onClick: () => navigate('/alerts')
+            label: '订阅管理',
+            onClick: () => navigate('/subscriptions')
           },
           {
             key: 'risk-alerts',

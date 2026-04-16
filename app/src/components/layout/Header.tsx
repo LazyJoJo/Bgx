@@ -10,7 +10,6 @@ import {
   UserOutlined
 } from '@ant-design/icons'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
-import { fetchNotificationUnreadCount } from '@store/slices/notificationsSlice'
 import { fetchRiskAlertUnreadCount } from '@store/slices/riskAlertsSlice'
 import { Avatar, Badge, Button, Dropdown, Layout, Menu } from 'antd'
 import { useEffect } from 'react'
@@ -27,14 +26,12 @@ const Header = ({ collapsed, onCollapse }: HeaderProps) => {
   const navigate = useNavigate()
   const location = useLocation()
   const dispatch = useAppDispatch()
-  const { totalUnreadCount } = useAppSelector((state) => state.notifications)
   const riskAlertUnreadCount = useAppSelector((state) => state.riskAlerts.unreadCount)
-  // 导航栏未读计数 = 通知未读 + 风险提醒未读
-  const totalAlertCount = totalUnreadCount + riskAlertUnreadCount
+  // 导航栏未读计数 = 风险提醒未读
+  const totalAlertCount = riskAlertUnreadCount
 
   // 组件挂载时获取未读计数
   useEffect(() => {
-    dispatch(fetchNotificationUnreadCount())
     dispatch(fetchRiskAlertUnreadCount())
   }, [dispatch])
 
@@ -58,10 +55,10 @@ const Header = ({ collapsed, onCollapse }: HeaderProps) => {
       onClick: () => navigate('/funds')
     },
     {
-      key: 'alerts',
+      key: 'subscriptions',
       icon: <BellOutlined />,
-      label: '提醒',
-      onClick: () => navigate('/alerts')
+      label: '订阅管理',
+      onClick: () => navigate('/subscriptions')
     }
   ]
 

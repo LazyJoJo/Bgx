@@ -1,4 +1,3 @@
-import { PriceAlert } from '@/types'
 import {
   BellOutlined,
   EyeOutlined,
@@ -7,9 +6,9 @@ import {
   StockOutlined,
   WarningOutlined
 } from '@ant-design/icons'
-import { alertsApi } from '@services/api/alerts'
 import { dashboardApi } from '@services/api/dashboard'
 import { riskAlertsApi } from '@services/api/riskAlerts'
+import { subscriptionsApi, Subscription } from '@services/api/subscriptions'
 import { Button, Card, Col, Row, Space, Statistic, Table, Tag, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -21,11 +20,11 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     totalStocks: 0,
     totalFunds: 0,
-    activeAlerts: 0,
-    triggeredAlerts: 0,
+    activeSubscriptions: 0,
+    triggeredSubscriptions: 0,
     riskAlertCount: 0
   })
-  const [recentAlerts, setRecentAlerts] = useState<PriceAlert[]>([])
+  const [recentSubscriptions, setRecentSubscriptions] = useState<Subscription[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -35,27 +34,31 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
-      const [statsResponse, alertsResponse, activeAlertsResponse, todayRiskCountResponse] = await Promise.all([
+      const userId = Number(localStorage.getItem('userId')) || 1
+
+      const [statsResponse, subscriptionsResponse, todayRiskCountResponse] = await Promise.all([
         dashboardApi.getDashboardStats(),
-        dashboardApi.getRecentAlerts(5),
-        alertsApi.getUserActiveAlerts(1),
-        riskAlertsApi.getTodayRiskAlertCount(1)
+        subscriptionsApi.getSubscriptions(userId, { limit: 5 }),
+        riskAlertsApi.getTodayRiskAlertCount(userId)
       ])
 
       const todayRiskCount = todayRiskCountResponse.success ? todayRiskCountResponse.data.total : 0
-      const activeAlertsCount = activeAlertsResponse.success ? activeAlertsResponse.data.length : 0
-      // 活跃提醒 = 价格提醒活跃数 + 当天风险提醒数
-      const totalActiveAlerts = activeAlertsCount + todayRiskCount
+      const subscriptions = subscriptionsResponse.success ? subscriptionsResponse.data : []
+
+      // 活跃订阅数
+      const activeSubscriptionsCount = subscriptions.filter((s: Subscription) => s.status === 'ACTIVE').length
+      // 已触发订阅数
+      const triggeredSubscriptionsCount = subscriptions.filter((s: Subscription) => s.status === 'TRIGGERED').length
 
       setStats({
         totalStocks: statsResponse.totalStocks || 0,
         totalFunds: statsResponse.totalFunds || 0,
-        activeAlerts: totalActiveAlerts,
-        triggeredAlerts: statsResponse.triggeredAlerts || 0,
+        activeSubscriptions: activeSubscriptionsCount,
+        triggeredSubscriptions: triggeredSubscriptionsCount,
         riskAlertCount: todayRiskCount
       })
 
-      setRecentAlerts(alertsResponse.data || [])
+      setRecentSubscriptions(subscriptions.slice(0, 5))
     } catch (error) {
       console.error('获取仪表盘数据失败:', error)
     } finally {
@@ -63,15 +66,16 @@ const Dashboard = () => {
     }
   }
 
-  const alertColumns = [
+  const subscriptionColumns = [
     {
       title: '标的',
       dataIndex: 'symbol',
       key: 'symbol',
-      render: (symbol: string, record: PriceAlert) => (
+      render: (symbol: string, record: Subscription) => (
         <Space>
           {record.symbolType === 'STOCK' ? <StockOutlined /> : <FundOutlined />}
           <span>{symbol}</span>
+          <span style={{ color: '#888' }}>({record.symbolName})</span>
         </Space>
       )
     },
@@ -93,11 +97,11 @@ const Dashboard = () => {
       title: '目标值',
       dataIndex: 'targetPrice',
       key: 'targetPrice',
-      render: (value: number, record: PriceAlert) => {
+      render: (value: number, record: Subscription) => {
         if (record.alertType === 'PERCENTAGE_CHANGE') {
-          return `${record.targetChangePercent}%`
+          return record.targetChangePercent != null ? `${record.targetChangePercent}%` : '-'
         }
-        return `¥${value?.toFixed(2)}`
+        return value != null ? `¥${value.toFixed(2)}` : '-'
       }
     },
     {
@@ -114,7 +118,7 @@ const Dashboard = () => {
         const statusMap: Record<string, { text: string; color: string }> = {
           ACTIVE: { text: '已启用', color: 'green' },
           TRIGGERED: { text: '已触发', color: 'orange' },
-          INACTIVE: { text: '已禁用', color: 'default' }
+          INACTIVE: { text: '已停用', color: 'default' }
         }
         const config = statusMap[status] || { text: status, color: 'default' }
         return <Tag color={config.color}>{config.text}</Tag>
@@ -123,12 +127,12 @@ const Dashboard = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: PriceAlert) => (
+      render: (_: any, record: Subscription) => (
         <Space size="middle">
           <Button
             type="link"
             icon={<EyeOutlined />}
-            onClick={() => navigate(`/alerts/${record.id}`)}
+            onClick={() => navigate(`/subscriptions/edit/${record.id}`)}
           >
             查看详情
           </Button>
@@ -163,10 +167,14 @@ const Dashboard = () => {
           </Card>
         </Col>
         <Col span={6}>
-          <Card>
+          <Card
+            hoverable
+            onClick={() => navigate('/subscriptions')}
+            style={{ cursor: 'pointer' }}
+          >
             <Statistic
-              title="活跃提醒"
-              value={stats.activeAlerts}
+              title="活跃订阅"
+              value={stats.activeSubscriptions}
               prefix={<BellOutlined />}
               valueStyle={{ color: '#faad14' }}
             />
@@ -175,8 +183,8 @@ const Dashboard = () => {
         <Col span={6}>
           <Card>
             <Statistic
-              title="已触发提醒"
-              value={stats.triggeredAlerts}
+              title="已触发订阅"
+              value={stats.triggeredSubscriptions}
               prefix={<RiseOutlined />}
               valueStyle={{ color: '#f5222d' }}
             />
@@ -201,16 +209,16 @@ const Dashboard = () => {
       <Row gutter={16}>
         <Col span={24}>
           <Card
-            title="最近提醒"
+            title="最近订阅"
             extra={
-              <Button type="primary" onClick={() => navigate('/alerts')}>
+              <Button type="primary" onClick={() => navigate('/subscriptions')}>
                 查看全部
               </Button>
             }
           >
             <Table
-              columns={alertColumns}
-              dataSource={recentAlerts}
+              columns={subscriptionColumns}
+              dataSource={recentSubscriptions}
               loading={loading}
               pagination={false}
               rowKey="id"

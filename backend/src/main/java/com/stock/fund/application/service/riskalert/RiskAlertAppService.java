@@ -1,7 +1,7 @@
 package com.stock.fund.application.service.riskalert;
 
 import com.stock.fund.application.service.riskalert.dto.*;
-import com.stock.fund.domain.entity.alert.PriceAlert;
+import com.stock.fund.domain.entity.subscription.UserSubscription;
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
 
 import java.math.BigDecimal;
@@ -87,14 +87,14 @@ public interface RiskAlertAppService {
     void deleteById(Long id);
 
     /**
-     * 处理价格提醒触发的风险
-     * 根据用户设置的 PriceAlert 判断是否产生风险记录
-     * @param alert 用户设置的价格提醒，使用 alert.shouldTrigger(currentPrice) 判断是否触发
+     * 处理订阅触发的风险
+     * 根据用户设置的 UserSubscription 判断是否产生风险记录
+     * @param subscription 用户设置的订阅，使用 targetChangePercent 判断是否触发
      * @param currentPrice 当前价格
      * @param yesterdayClose 昨日收盘价
      * @param timePoint 时间点，传入 "11:30" 或 "14:30"
      */
-    void processAlertTriggeredRisk(PriceAlert alert, BigDecimal currentPrice, BigDecimal yesterdayClose, String timePoint);
+    void processSubscriptionRisk(UserSubscription subscription, BigDecimal currentPrice, BigDecimal yesterdayClose, String timePoint);
 
     /**
      * 批量创建风险提醒

@@ -8,10 +8,10 @@ import Dashboard from '@pages/dashboard/Dashboard'
 import StockList from '@pages/stocks/StockList'
 import FundList from '@pages/funds/FundList'
 import FundAnalysis from '@pages/funds/FundAnalysis'
-import AlertList from '@pages/alerts/AlertList'
-import AlertCreate from '@pages/alerts/AlertCreate'
 import RiskAlertList from '@pages/risk-alerts/RiskAlertList'
 import ErrorBoundary from '@components/ErrorBoundary'
+import SubscriptionList from '@pages/subscriptions/SubscriptionList'
+import SubscriptionCreate from '@components/subscriptions/SubscriptionCreate'
 
 const { Content } = Layout
 
@@ -32,9 +32,9 @@ function App() {
                 <Route path="/stocks" element={<StockList />} />
                 <Route path="/funds" element={<FundList />} />
                 <Route path="/fund-analysis" element={<FundAnalysis />} />
-                <Route path="/alerts" element={<AlertList />} />
-                <Route path="/alerts/edit/:id" element={<AlertCreate />} />
-                <Route path="/alerts/create" element={<AlertCreate />} />
+                <Route path="/subscriptions" element={<SubscriptionList />} />
+                <Route path="/subscriptions/edit/:id" element={<SubscriptionCreate />} />
+                <Route path="/subscriptions/create" element={<SubscriptionCreate />} />
                 <Route path="/risk-alerts" element={<RiskAlertList />} />
               </Routes>
             </Content>

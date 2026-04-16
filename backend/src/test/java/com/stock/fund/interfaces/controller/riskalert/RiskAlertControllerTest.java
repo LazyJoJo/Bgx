@@ -1,6 +1,5 @@
 package com.stock.fund.interfaces.controller.riskalert;
 
-import com.stock.fund.application.scheduler.AlertScheduler;
 import com.stock.fund.application.scheduler.DataCollectionScheduler;
 import com.stock.fund.application.scheduler.RiskAlertScheduler;
 import com.stock.fund.application.service.riskalert.RiskAlertAppService;
@@ -49,9 +48,6 @@ class RiskAlertControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockBean
-    private AlertScheduler alertScheduler;
 
     @MockBean
     private DataCollectionScheduler dataCollectionScheduler;
