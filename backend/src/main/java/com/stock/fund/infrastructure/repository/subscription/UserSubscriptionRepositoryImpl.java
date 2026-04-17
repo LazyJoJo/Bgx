@@ -3,13 +3,14 @@ package com.stock.fund.infrastructure.repository.subscription;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
 import com.stock.fund.domain.entity.subscription.UserSubscription;
 import com.stock.fund.domain.repository.subscription.UserSubscriptionQuery;
 import com.stock.fund.domain.repository.subscription.UserSubscriptionRepository;
+import com.stock.fund.infrastructure.convert.UserSubscriptionStructMapper;
 import com.stock.fund.infrastructure.entity.subscription.UserSubscriptionPO;
-import com.stock.fund.infrastructure.mapper.struct.UserSubscriptionStructMapper;
 import com.stock.fund.infrastructure.mapper.subscription.UserSubscriptionMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class UserSubscriptionRepositoryImpl implements UserSubscriptionRepository {
 
     private final UserSubscriptionMapper userSubscriptionMapper;
+    @Qualifier("userSubscriptionStructMapperImpl")
     private final UserSubscriptionStructMapper structMapper;
 
     @Override

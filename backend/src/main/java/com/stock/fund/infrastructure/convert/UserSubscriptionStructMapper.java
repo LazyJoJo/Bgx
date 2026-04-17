@@ -1,4 +1,4 @@
-package com.stock.fund.infrastructure.mapper.struct;
+package com.stock.fund.infrastructure.convert;
 
 import java.util.List;
 
