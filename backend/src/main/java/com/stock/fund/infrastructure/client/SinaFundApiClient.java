@@ -2,6 +2,7 @@ package com.stock.fund.infrastructure.client;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.HashMap;
@@ -130,6 +131,12 @@ public class SinaFundApiClient {
      * 判断当前是否在开盘时间段
      */
     public boolean isMarketOpenTime(LocalDate date, LocalTime time) {
+        // 检查是否为周末
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
+            return false;
+        }
+
         LocalTime marketOpen = LocalTime.of(9, 30);
         LocalTime marketClose = LocalTime.of(15, 0);
         return !time.isBefore(marketOpen) && !time.isAfter(marketClose);

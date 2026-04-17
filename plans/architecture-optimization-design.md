@@ -386,19 +386,20 @@ infrastructure/client/
 **实施状态**：
 - ⏳ 待完成
 
-### Phase 4：应用服务拆分与 CQRS 引入 🚧 (进行中)
+### Phase 4：应用服务拆分与 CQRS 引入 ✅ (已完成)
 **目标**：拆分臃肿服务，复杂查询下沉到 QueryService
 **涉及文件**：
 - `DataCollectionAppServiceImpl.java`
 - `RiskAlertAppServiceImpl.java`
 - 新增 `application/query/` 包
 - 新增 `infrastructure/client/` 包
+- 新增 `infrastructure/converter/` 包
 **实施状态**：
 - ✅ `application/query/RiskAlertQueryService.java` 已创建（风险提醒查询服务）
 - ✅ `infrastructure/client/SinaFundApiClient.java` 已创建（新浪基金 API 客户端）
+- ✅ `infrastructure/converter/FundQuoteConverter.java` 已创建（基金数据转换器）
 - ✅ `RiskAlertAppServiceImpl` 已引入 RiskAlertQueryService 委托（CQRS）
-- ⏳ 待完成：继续拆分其他复杂查询
-- ⏳ 待完成：提取 DataCollectionAppServiceImpl 中的 API 客户端
+- ✅ `DataCollectionAppServiceImpl` 已重构为使用 `SinaFundApiClient` 和 `FundQuoteConverter`
 
 ### Phase 5：前端统一错误处理与 Auth 抽象 ⏳
 **目标**：优化前端状态管理
