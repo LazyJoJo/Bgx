@@ -360,7 +360,7 @@ infrastructure/client/
 - ✅ `DashboardController.java` 已移除 try-catch
 - ✅ `DataCollectionTargetController.java` 已移除 try-catch
 
-### Phase 2：构造函数注入与 MapStruct 引入 ⏳
+### Phase 2：构造函数注入与 MapStruct 引入 ✅
 **目标**：替换字段注入，引入自动化映射
 **涉及文件**：
 - 所有 `*ServiceImpl.java`
@@ -368,10 +368,15 @@ infrastructure/client/
 - `pom.xml`
 - 新增 `infrastructure/mapper/struct/` 包
 **实施状态**：
-- ⚠️ `pom.xml` 中曾添加 `<mapstruct.version>1.5.5.Final</mapstruct.version>` 但缺少依赖声明，已回滚
-- ⏳ 待完成：引入 MapStruct 依赖并配置 annotationProcessorPaths
-- ⏳ 待完成：所有 `*ServiceImpl.java` 改为构造函数注入
+- ✅ `pom.xml` 已添加 MapStruct 依赖和 annotationProcessorPaths 配置
+- ✅ `SubscriptionAppServiceImpl.java` 已改为构造函数注入（@RequiredArgsConstructor）
+- ✅ `RiskAlertAppServiceImpl.java` 已改为构造函数注入
+- ✅ `DataCollectionAppServiceImpl.java` 已改为构造函数注入
+- ✅ `DataCollectionTargetAppServiceImpl.java` 已改为构造函数注入
+- ✅ `DataProcessingAppServiceImpl.java` 已改为构造函数注入
+- ✅ `infrastructure/mapper/struct/UserSubscriptionStructMapper.java` 已创建示例 MapStruct Mapper
 - ⏳ 待完成：所有 `*RepositoryImpl.java` 改为构造函数注入
+- ⏳ 待完成：其他 ServiceImpl 类的构造函数注入改造
 
 ### Phase 3：领域模型封装修复 ⏳
 **目标**：移除 `@Data`，修复领域模型不变性
@@ -381,7 +386,7 @@ infrastructure/client/
 **实施状态**：
 - ⏳ 待完成
 
-### Phase 4：应用服务拆分与 CQRS 引入 ⏳
+### Phase 4：应用服务拆分与 CQRS 引入 🚧 (进行中)
 **目标**：拆分臃肿服务，复杂查询下沉到 QueryService
 **涉及文件**：
 - `DataCollectionAppServiceImpl.java`
@@ -389,7 +394,11 @@ infrastructure/client/
 - 新增 `application/query/` 包
 - 新增 `infrastructure/client/` 包
 **实施状态**：
-- ⏳ 待完成
+- ✅ `application/query/RiskAlertQueryService.java` 已创建（风险提醒查询服务）
+- ✅ `infrastructure/client/SinaFundApiClient.java` 已创建（新浪基金 API 客户端）
+- ✅ `RiskAlertAppServiceImpl` 已引入 RiskAlertQueryService 委托（CQRS）
+- ⏳ 待完成：继续拆分其他复杂查询
+- ⏳ 待完成：提取 DataCollectionAppServiceImpl 中的 API 客户端
 
 ### Phase 5：前端统一错误处理与 Auth 抽象 ⏳
 **目标**：优化前端状态管理

@@ -1,79 +1,63 @@
 package com.stock.fund.application.service.impl;
 
-import com.stock.fund.application.service.DataCollectionAppService;
-import com.stock.fund.domain.entity.Stock;
-import com.stock.fund.domain.entity.Fund;
-import com.stock.fund.domain.entity.StockQuote;
-import com.stock.fund.domain.entity.FundQuote;
-import com.stock.fund.domain.entity.DataCollectionTarget;
-import com.stock.fund.domain.repository.StockRepository;
-import com.stock.fund.domain.repository.FundRepository;
-import com.stock.fund.domain.repository.StockQuoteRepository;
-import com.stock.fund.domain.repository.FundQuoteRepository;
-import com.stock.fund.domain.repository.DataCollectionTargetRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.DayOfWeek;
-import java.util.List;
-import java.util.stream.Collectors;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.stock.fund.application.service.DataCollectionAppService;
+import com.stock.fund.domain.entity.DataCollectionTarget;
+import com.stock.fund.domain.entity.Fund;
+import com.stock.fund.domain.entity.FundQuote;
+import com.stock.fund.domain.entity.Stock;
+import com.stock.fund.domain.entity.StockQuote;
+import com.stock.fund.domain.repository.DataCollectionTargetRepository;
+import com.stock.fund.domain.repository.FundQuoteRepository;
+import com.stock.fund.domain.repository.FundRepository;
+import com.stock.fund.domain.repository.StockQuoteRepository;
+import com.stock.fund.domain.repository.StockRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
-    @Autowired
-    private StockRepository stockRepository;
-    
-    @Autowired
-    private FundRepository fundRepository;
-    
-    @Autowired
-    private StockQuoteRepository stockQuoteRepository;
-    
-    @Autowired
-    private FundQuoteRepository fundQuoteRepository;
-    
-    @Autowired
-    private DataCollectionTargetRepository dataCollectionTargetRepository;
-    
-    @Autowired
-    private OkHttpClient httpClient;
+    private final StockRepository stockRepository;
+    private final FundRepository fundRepository;
+    private final StockQuoteRepository stockQuoteRepository;
+    private final FundQuoteRepository fundQuoteRepository;
+    private final DataCollectionTargetRepository dataCollectionTargetRepository;
+    private final OkHttpClient httpClient;
 
     @Override
     public List<Stock> collectStockBasicList() {
         // 模拟从数据源获取股票基本信息
         // 实际实现中这里会调用外部API如Tushare等
-        return List.of(
-            createSampleStock("600000", "浦发银行", "银行", "沪市"),
-            createSampleStock("600519", "贵州茅台", "白酒", "沪市"),
-            createSampleStock("000001", "平安银行", "银行", "深市")
-        );
+        return List.of(createSampleStock("600000", "浦发银行", "银行", "沪市"), createSampleStock("600519", "贵州茅台", "白酒", "沪市"),
+                createSampleStock("000001", "平安银行", "银行", "深市"));
     }
 
     @Override
     public StockQuote collectStockQuote(String symbol) {
         // 模拟从数据源获取股票实时行情
         // 实际实现中这里会调用外部API如Tushare等
-        Stock stock = stockRepository.findBySymbol(symbol)
-            .orElseThrow(() -> new RuntimeException("股票不存在: " + symbol));
+        Stock stock = stockRepository.findBySymbol(symbol).orElseThrow(() -> new RuntimeException("股票不存在: " + symbol));
 
         StockQuote quote = new StockQuote();
         quote.setStockId(stock.getId());
@@ -92,20 +76,16 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
     @Override
     public List<StockQuote> collectStockQuotes(List<String> symbols) {
-        return symbols.stream()
-            .map(this::collectStockQuote)
-            .collect(Collectors.toList());
+        return symbols.stream().map(this::collectStockQuote).collect(Collectors.toList());
     }
 
     @Override
     public List<Fund> collectFundBasicList() {
         // 模拟从数据源获取基金基本信息
         // 实际实现中这里会调用外部API如Tushare等
-        return List.of(
-            createSampleFund("000001", "华夏成长混合", "混合型", "王明"),
-            createSampleFund("000011", "易方达价值精选", "混合型", "李华"),
-            createSampleFund("110011", "易方达中小盘混合", "混合型", "张伟")
-        );
+        return List.of(createSampleFund("000001", "华夏成长混合", "混合型", "王明"),
+                createSampleFund("000011", "易方达价值精选", "混合型", "李华"),
+                createSampleFund("110011", "易方达中小盘混合", "混合型", "张伟"));
     }
 
     @Override
@@ -113,7 +93,7 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         // 从外部数据源获取基金实时净值
         // 实际实现中这里会调用外部API
         Fund fund = fundRepository.findByFundCode(fundCode)
-            .orElseThrow(() -> new RuntimeException("基金不存在: " + fundCode));
+                .orElseThrow(() -> new RuntimeException("基金不存在: " + fundCode));
 
         FundQuote quote = new FundQuote();
         quote.setFundCode(fund.getFundCode());
@@ -123,9 +103,7 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         quote.setQuoteTimeOnly(now.toLocalTime());
         quote.setNav(fund.getNav());
         // 计算昨日净值 = nav * 0.99，保留4位小数
-        BigDecimal prevNetValue = fund.getNav()
-            .multiply(new BigDecimal("0.99"))
-            .setScale(4, RoundingMode.HALF_UP);
+        BigDecimal prevNetValue = fund.getNav().multiply(new BigDecimal("0.99")).setScale(4, RoundingMode.HALF_UP);
         quote.setPrevNetValue(prevNetValue);
         quote.setChangeAmount(fund.getDayGrowth().setScale(4, RoundingMode.HALF_UP));
         quote.setChangePercent(fund.getDayGrowth().setScale(2, RoundingMode.HALF_UP));
@@ -135,9 +113,7 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
     @Override
     public List<FundQuote> collectFundQuotes(List<String> fundCodes) {
-        return fundCodes.stream()
-            .map(this::collectFundQuote)
-            .collect(Collectors.toList());
+        return fundCodes.stream().map(this::collectFundQuote).collect(Collectors.toList());
     }
 
     @Override
@@ -158,12 +134,12 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
                 // 获取基金实时数据
                 FundQuote newFundQuote = fetchFundRealTimeData(target.getCode());
-                
+
                 if (newFundQuote != null) {
                     // 检查是否已存在同一天的相同基金代码的记录
-                    FundQuote existingQuote = fundQuoteRepository.findByFundCodeAndQuoteDate(
-                        newFundQuote.getFundCode(), newFundQuote.getQuoteDate());
-                    
+                    FundQuote existingQuote = fundQuoteRepository.findByFundCodeAndQuoteDate(newFundQuote.getFundCode(),
+                            newFundQuote.getQuoteDate());
+
                     if (existingQuote != null) {
                         // 如果存在同一天的记录，更新现有记录
                         existingQuote.setFundName(newFundQuote.getFundName());
@@ -173,23 +149,18 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
                         existingQuote.setPrevNetValue(newFundQuote.getPrevNetValue());
                         existingQuote.setChangeAmount(newFundQuote.getChangeAmount());
                         existingQuote.setChangePercent(newFundQuote.getChangePercent());
-                        
+
                         fundQuoteRepository.save(existingQuote);
-                        System.out.println("更新基金数据: " + target.getCode() + 
-                                         " 日期: " + existingQuote.getQuoteDate() +
-                                         " 时间: " + existingQuote.getQuoteTimeOnly() +
-                                         " 净值: " + existingQuote.getNav() + 
-                                         " 涨跌幅: " + existingQuote.getChangePercent() + "%" +
-                                         " 涨跌额: " + existingQuote.getChangeAmount());
+                        System.out.println("更新基金数据: " + target.getCode() + " 日期: " + existingQuote.getQuoteDate()
+                                + " 时间: " + existingQuote.getQuoteTimeOnly() + " 净值: " + existingQuote.getNav()
+                                + " 涨跌幅: " + existingQuote.getChangePercent() + "%" + " 涨跌额: "
+                                + existingQuote.getChangeAmount());
                     } else {
                         // 如果不存在同一天的记录，保存新记录
                         fundQuoteRepository.save(newFundQuote);
-                        System.out.println("新增基金数据: " + target.getCode() + 
-                                         " 日期: " + newFundQuote.getQuoteDate() +
-                                         " 时间: " + newFundQuote.getQuoteTimeOnly() +
-                                         " 净值: " + newFundQuote.getNav() + 
-                                         " 涨跌幅: " + newFundQuote.getChangePercent() + "%" +
-                                         " 涨跌额: " + newFundQuote.getChangeAmount());
+                        System.out.println("新增基金数据: " + target.getCode() + " 日期: " + newFundQuote.getQuoteDate()
+                                + " 时间: " + newFundQuote.getQuoteTimeOnly() + " 净值: " + newFundQuote.getNav() + " 涨跌幅: "
+                                + newFundQuote.getChangePercent() + "%" + " 涨跌额: " + newFundQuote.getChangeAmount());
                     }
                 } else {
                     System.out.println("未能获取到基金 " + target.getCode() + " 的实时数据");
@@ -208,14 +179,14 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
     public FundQuote fetchFundRealTimeData(String fundCode) {
         try {
             Map<String, String> fundData = fetchFundRealTimeDataFromAPI(fundCode);
-            
+
             if (fundData != null && !fundData.isEmpty()) {
                 // 创建一个临时的DataCollectionTarget对象用于转换
                 DataCollectionTarget target = new DataCollectionTarget();
                 target.setCode(fundCode);
                 // 尝试从数据中获取基金名称，如果无法获取则使用基金代码作为名称
                 target.setName(fundData.getOrDefault("name", fundCode));
-                
+
                 // 将数据转换为FundQuote实体
                 return convertToFundQuote(target, fundData);
             }
@@ -223,45 +194,40 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
             System.err.println("获取基金 " + fundCode + " 数据时发生异常: " + e.getMessage());
             e.printStackTrace();
         }
-        
+
         return null;
     }
-    
+
     /**
      * 从外部API获取基金实时数据
+     * 
      * @param fundCode 基金代码
      * @return 基金数据Map
      */
     private Map<String, String> fetchFundRealTimeDataFromAPI(String fundCode) {
-        String urlStr = String.format(
-                "https://hq.sinajs.cn/list=fu_%s",
-                fundCode
-        );
+        String urlStr = String.format("https://hq.sinajs.cn/list=fu_%s", fundCode);
 
-        Request request = new Request.Builder()
-                .url(urlStr)
-                .addHeader("User-Agent", 
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .addHeader("Referer", "https://finance.sina.com.cn/")
-                .build();
+        Request request = new Request.Builder().url(urlStr).addHeader("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .addHeader("Referer", "https://finance.sina.com.cn/").build();
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 System.err.println("请求基金数据失败，HTTP Code: " + response.code());
                 return null;
             }
-            
+
             ResponseBody body = response.body();
             if (body == null) {
                 System.err.println("响应体为空");
                 return null;
             }
-            
+
             // 获取原始字节数组以处理可能的编码问题
             byte[] bytes = body.bytes();
             // 根据新浪API特性，使用GBK编码处理中文
             String content = new String(bytes, java.nio.charset.Charset.forName("GBK"));
-            
+
             // 解析基金数据
             return parseFundData(content, fundCode);
 
@@ -271,9 +237,10 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
             return null;
         }
     }
-    
+
     /**
      * 解析基金数据
+     * 
      * @param response 响应数据
      * @param fundCode 基金代码
      * @return 解析后的基金数据Map
@@ -284,7 +251,8 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
                 return null;
             }
 
-            // 响应格式通常是 var hq_str_fu_{code}="name,date,time,net_value,growth_rate,other_data";
+            // 响应格式通常是 var
+            // hq_str_fu_{code}="name,date,time,net_value,growth_rate,other_data";
             String[] lines = response.split(";");
             for (String line : lines) {
                 line = line.trim();
@@ -295,13 +263,13 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
                         String data = line.substring(start + 1, end);
                         String[] fields = data.split(",");
 
-                        if (fields.length >= 5) {  // 至少需要基金名称、时间、净值、昨日净值
+                        if (fields.length >= 5) { // 至少需要基金名称、时间、净值、昨日净值
                             java.util.HashMap<String, String> fundData = new java.util.HashMap<>();
                             fundData.put("fundCode", fundCode);
-                            fundData.put("name", fields[0]);           // 基金名称
-                            fundData.put("time", fields[1]);           // 时间
-                            fundData.put("netValue", fields[2]);       // 净值
-                            fundData.put("oldNetValue", fields[3]);    // 昨日净值
+                            fundData.put("name", fields[0]); // 基金名称
+                            fundData.put("time", fields[1]); // 时间
+                            fundData.put("netValue", fields[2]); // 净值
+                            fundData.put("oldNetValue", fields[3]); // 昨日净值
                             return fundData;
                         }
                     }
@@ -314,10 +282,11 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
         return null;
     }
-    
+
     /**
      * 将基金数据转换为FundQuote实体
-     * @param target 采集目标
+     * 
+     * @param target   采集目标
      * @param fundData 基金数据
      * @return FundQuote实体
      */
@@ -352,10 +321,8 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
                 // 计算涨跌幅: (nav - oldNetValue) / oldNetValue * 100
                 if (oldNetValue.compareTo(BigDecimal.ZERO) != 0) {
-                    BigDecimal changePercent = nav.subtract(oldNetValue)
-                        .divide(oldNetValue, 4, RoundingMode.HALF_UP)
-                        .multiply(new BigDecimal("100"))
-                        .setScale(2, RoundingMode.HALF_UP);
+                    BigDecimal changePercent = nav.subtract(oldNetValue).divide(oldNetValue, 4, RoundingMode.HALF_UP)
+                            .multiply(new BigDecimal("100")).setScale(2, RoundingMode.HALF_UP);
                     fundQuote.setChangePercent(changePercent);
                 } else {
                     fundQuote.setChangePercent(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
@@ -449,7 +416,7 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         fund.setYearGrowth(new BigDecimal("14.50"));
         return fund;
     }
-    
+
     @Override
     @Transactional
     public DataCollectionTarget addTargetFund(String fundCode) {
@@ -460,26 +427,26 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
                 System.out.println("基金目标已存在: " + fundCode + "，直接返回已存在的配置");
                 return existingTargetOpt.get();
             }
-            
+
             System.out.println("开始添加目标基金: " + fundCode);
-            
+
             // 2. 获取基金实时数据
             FundQuote fundQuote = fetchFundRealTimeData(fundCode);
             if (fundQuote == null) {
                 throw new RuntimeException("无法获取基金 " + fundCode + " 的实时数据");
             }
-            
+
             // 3. 从实时数据中提取基础信息
             Fund fundBasic = extractFundBasicInfo(fundQuote);
-            
+
             // 4. 保存到fund_basic表
             fundRepository.save(fundBasic);
             System.out.println("基金基础信息已保存到fund_basic表: " + fundCode);
-            
+
             // 5. 保存实时数据到fund_quote表
             fundQuoteRepository.save(fundQuote);
             System.out.println("基金实时数据已保存到fund_quote表: " + fundCode);
-            
+
             // 6. 创建数据采集目标配置
             DataCollectionTarget target = new DataCollectionTarget();
             target.setCode(fundCode);
@@ -488,21 +455,22 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
             target.setActive(true);
             target.setCollectionFrequency(15); // 默认15分钟采集一次
             target.setDataSource("SINA_API");
-            
+
             // 7. 保存到data_collection_target表
             DataCollectionTarget savedTarget = dataCollectionTargetRepository.save(target);
             System.out.println("数据采集目标已保存到data_collection_target表: " + fundCode);
-            
+
             return savedTarget;
-            
+
         } catch (Exception e) {
             System.err.println("添加目标基金 " + fundCode + " 时发生异常: " + e.getMessage());
             throw new RuntimeException("添加目标基金失败: " + e.getMessage(), e);
         }
     }
-    
+
     /**
      * 从基金实时数据中提取基础信息
+     * 
      * @param fundQuote基金实时数据
      * @return Fund基金基础信息
      */
@@ -530,8 +498,8 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
     }
 
     /**
-     * 判断当前时间是否为开盘时间段
-     * A股开盘时间：9:30 - 15:00
+     * 判断当前时间是否为开盘时间段 A股开盘时间：9:30 - 15:00
+     * 
      * @param date 查询日期
      * @param time 查询时间
      * @return 是否在开盘时间段内

@@ -1,23 +1,26 @@
 package com.stock.fund.application.service.impl;
 
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.stock.fund.application.service.DataCollectionTargetAppService;
 import com.stock.fund.domain.entity.DataCollectionTarget;
 import com.stock.fund.domain.repository.DataCollectionTargetRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 @Transactional
 public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetAppService {
 
-    @Autowired
-    private DataCollectionTargetRepository dataCollectionTargetRepository;
+    private final DataCollectionTargetRepository dataCollectionTargetRepository;
 
     @Override
     public DataCollectionTarget createTarget(DataCollectionTarget target) {
-        //验证代码是否已存在
+        // 验证代码是否已存在
         if (dataCollectionTargetRepository.findByCode(target.getCode()).isPresent()) {
             throw new IllegalArgumentException("采集目标代码已存在: " + target.getCode());
         }
@@ -27,8 +30,8 @@ public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetA
     @Override
     public DataCollectionTarget updateTarget(Long id, DataCollectionTarget target) {
         DataCollectionTarget existingTarget = dataCollectionTargetRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("采集目标不存在: " + id));
-        
+                .orElseThrow(() -> new IllegalArgumentException("采集目标不存在: " + id));
+
         // 更新字段
         existingTarget.setName(target.getName());
         existingTarget.setType(target.getType());
@@ -38,15 +41,15 @@ public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetA
         existingTarget.setDescription(target.getDescription());
         existingTarget.setCollectionFrequency(target.getCollectionFrequency());
         existingTarget.setDataSource(target.getDataSource());
-        
+
         return dataCollectionTargetRepository.save(existingTarget);
     }
 
     @Override
     public DataCollectionTarget updateTargetByCode(String code, DataCollectionTarget target) {
         DataCollectionTarget existingTarget = dataCollectionTargetRepository.findByCode(code)
-            .orElseThrow(() -> new IllegalArgumentException("采集目标代码不存在: " + code));
-        
+                .orElseThrow(() -> new IllegalArgumentException("采集目标代码不存在: " + code));
+
         return updateTarget(existingTarget.getId(), target);
     }
 
@@ -63,13 +66,13 @@ public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetA
     @Override
     public DataCollectionTarget getTargetById(Long id) {
         return dataCollectionTargetRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("采集目标不存在: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("采集目标不存在: " + id));
     }
 
     @Override
     public DataCollectionTarget getTargetByCode(String code) {
         return dataCollectionTargetRepository.findByCode(code)
-            .orElseThrow(() -> new IllegalArgumentException("采集目标代码不存在: " + code));
+                .orElseThrow(() -> new IllegalArgumentException("采集目标代码不存在: " + code));
     }
 
     @Override
