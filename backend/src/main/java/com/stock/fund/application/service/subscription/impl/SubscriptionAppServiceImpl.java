@@ -224,6 +224,13 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
     }
 
     @Override
+    public List<UserSubscription> getUserSubscriptions(Long userId, UserSubscriptionQuery query) {
+        logger.debug("获取用户订阅列表: 用户ID={}, symbol={}, symbolType={}, status={}",
+                userId, query.getSymbol(), query.getSymbolType(), query.getStatus());
+        return userSubscriptionRepository.findByUserIdWithPage(query);
+    }
+
+    @Override
     public List<UserSubscription> getUserActiveSubscriptions(Long userId) {
         logger.debug("获取用户激活的订阅: 用户ID={}", userId);
         return userSubscriptionRepository.findByUserIdAndActive(userId, true);

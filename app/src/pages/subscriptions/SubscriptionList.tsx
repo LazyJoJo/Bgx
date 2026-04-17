@@ -1,6 +1,6 @@
-import { useEffect, useCallback, useState } from 'react'
-import { Table, Tag, Button, Space, Select, Form, Row, Col, message, Popconfirm, Typography, Card, Alert, Badge } from 'antd'
-import { PlusOutlined, DeleteOutlined, PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import { Table, Tag, Button, Space, Select, Input, Form, Row, Col, message, Popconfirm, Typography, Card, Badge } from 'antd'
+import { PlusOutlined, DeleteOutlined, PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, EditOutlined } from '@ant-design/icons'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
 import {
   fetchSubscriptions,
@@ -12,6 +12,7 @@ import {
 } from '@store/slices/subscriptionsSlice'
 import { subscriptionsApi, SymbolType, SubscriptionStatus, AlertType, Subscription } from '@services/api/subscriptions'
 import SubscriptionCreate from '@components/subscriptions/SubscriptionCreate'
+import SubscriptionEdit from '@components/subscriptions/SubscriptionEdit'
 import './SubscriptionList.css'
 
 const { Text } = Typography
@@ -37,6 +38,8 @@ const SubscriptionList: React.FC = () => {
   const { list, loading, filters } = useAppSelector((state) => state.subscriptions)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [createModalVisible, setCreateModalVisible] = useState(false)
+  const [editModalVisible, setEditModalVisible] = useState(false)
+  const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null)
   const [form] = Form.useForm()
 
   // 加载订阅列表
@@ -44,13 +47,33 @@ const SubscriptionList: React.FC = () => {
     dispatch(fetchSubscriptions(filters))
   }, [dispatch, filters])
 
-  // 筛选条件变化处理
+  // 同步 filters 到表单
+  useEffect(() => {
+    form.setFieldsValue(filters)
+  }, [form, filters])
+
+  // 筛选条件变化处理（仅处理下拉选择类筛选，忽略 symbol 搜索框输入）
   const handleFilterChange = (changedValues: any, allValues: any) => {
+    // 如果变化来自 symbol 字段，直接忽略，避免输入过程中频繁发请求
+    if ('symbol' in changedValues) {
+      return
+    }
     const newFilters: any = {}
     if (allValues.symbolType) newFilters.symbolType = allValues.symbolType
     if (allValues.status) newFilters.status = allValues.status
     if (allValues.alertType) newFilters.alertType = allValues.alertType
     if (allValues.symbol) newFilters.symbol = allValues.symbol
+    dispatch(setFilters(newFilters))
+  }
+
+  // 搜索框处理
+  const handleSymbolSearch = (value: string) => {
+    const newFilters: any = { ...filters }
+    if (value.trim()) {
+      newFilters.symbol = value.trim()
+    } else {
+      delete newFilters.symbol
+    }
     dispatch(setFilters(newFilters))
   }
 
@@ -75,6 +98,18 @@ const SubscriptionList: React.FC = () => {
   const handleCreateSuccess = () => {
     dispatch(fetchSubscriptions(filters))
     message.success('订阅创建成功')
+  }
+
+  // 打开编辑弹窗
+  const handleOpenEdit = (subscription: Subscription) => {
+    setEditingSubscription(subscription)
+    setEditModalVisible(true)
+  }
+
+  // 编辑成功回调
+  const handleEditSuccess = () => {
+    dispatch(fetchSubscriptions(filters))
+    message.success('订阅更新成功')
   }
 
   // 批量启用
@@ -144,9 +179,9 @@ const SubscriptionList: React.FC = () => {
             <Tag color={record.symbolType === 'STOCK' ? 'blue' : 'green'}>
               {record.symbolType === 'STOCK' ? '股票' : '基金'}
             </Tag>
-            <Text strong>{symbol}</Text>
+            <Text strong>{symbol || '-'}</Text>
           </Space>
-          <Text type="secondary" style={{ fontSize: 12 }}>{record.symbolName}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{record.symbolName || '-'}</Text>
         </Space>
       ),
     },
@@ -161,7 +196,7 @@ const SubscriptionList: React.FC = () => {
           PRICE_ABOVE: { color: 'red', label: '价格上限' },
           PRICE_BELOW: { color: 'green', label: '价格下限' },
         }
-        const { color, label } = config[alertType] || { color: 'default', label: alertType }
+        const { color, label } = config[alertType] || { color: 'default', label: alertType || '未知' }
         return <Tag color={color}>{label}</Tag>
       },
     },
@@ -172,10 +207,10 @@ const SubscriptionList: React.FC = () => {
       width: 120,
       render: (value: number, record: SubscriptionListResponse) => {
         if (record.alertType === 'PERCENTAGE_CHANGE') {
-          return value ? `${value}%` : '-'
+          return value !== undefined && value !== null ? `${value}%` : '-'
         }
         if (record.alertType === 'PRICE_ABOVE' || record.alertType === 'PRICE_BELOW') {
-          return record.targetPrice ? `¥${record.targetPrice.toFixed(2)}` : '-'
+          return record.targetPrice !== undefined && record.targetPrice !== null ? `¥${record.targetPrice.toFixed(2)}` : '-'
         }
         return '-'
       },
@@ -184,15 +219,19 @@ const SubscriptionList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
+      width: 120,
       render: (status: SubscriptionStatus) => {
-        const config: Record<SubscriptionStatus, { color: string; label: string }> = {
-          ACTIVE: { color: 'success', label: '启用' },
-          INACTIVE: { color: 'default', label: '停用' },
-          TRIGGERED: { color: 'warning', label: '已触发' },
+        const config: Record<SubscriptionStatus, { color: string; label: string; tagColor: string }> = {
+          ACTIVE: { color: '#52c41a', label: '生效中', tagColor: 'success' },
+          INACTIVE: { color: '#d9d9d9', label: '已停用', tagColor: 'default' },
+          TRIGGERED: { color: '#faad14', label: '已触发', tagColor: 'warning' },
         }
-        const { color, label } = config[status] || { color: 'default', label: status }
-        return <Badge status={status === 'ACTIVE' ? 'success' : status === 'TRIGGERED' ? 'warning' : 'default'} text={label} />
+        const { color, label, tagColor } = config[status] || { color: '#d9d9d9', label: status || '未知', tagColor: 'default' }
+        return (
+          <Tag color={tagColor} style={{ color: color, borderColor: color }}>
+            {label}
+          </Tag>
+        )
       },
     },
     {
@@ -200,14 +239,28 @@ const SubscriptionList: React.FC = () => {
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      render: (createdAt: string) => {
+        if (!createdAt) return '-'
+        try {
+          return new Date(createdAt).toLocaleString('zh-CN')
+        } catch {
+          return '-'
+        }
+      },
     },
     {
-      title: '备注',
-      dataIndex: 'remark',
-      key: 'remark',
-      ellipsis: true,
-      render: (remark: string) => remark || '-',
+      title: '操作',
+      key: 'action',
+      width: 100,
+      render: (_: any, record: SubscriptionListResponse) => (
+        <Button
+          type="link"
+          icon={<EditOutlined />}
+          onClick={() => handleOpenEdit(record as unknown as Subscription)}
+        >
+          编辑
+        </Button>
+      ),
     },
   ]
 
@@ -217,7 +270,15 @@ const SubscriptionList: React.FC = () => {
       <div className="page-header">
         <div className="page-title">
           <h2>订阅管理</h2>
-          <Badge count={list.length} style={{ marginLeft: 8 }} />
+          {(() => {
+            const activeCount = list.filter((item) => item.status === 'ACTIVE').length
+            return activeCount > 0 ? (
+              <Badge
+                count={activeCount}
+                style={{ marginLeft: 8, backgroundColor: '#52c41a' }}
+              />
+            ) : null
+          })()}
         </div>
       </div>
 
@@ -227,7 +288,6 @@ const SubscriptionList: React.FC = () => {
           form={form}
           layout="vertical"
           onValuesChange={handleFilterChange}
-          initialValues={filters}
         >
           <Row gutter={16} align="middle">
             <Col flex="auto">
@@ -271,19 +331,12 @@ const SubscriptionList: React.FC = () => {
                 </Form.Item>
 
                 <Form.Item name="symbol" style={{ marginBottom: 0 }}>
-                  <Select
-                    showSearch
+                  <Input.Search
                     placeholder="搜索标的代码或名称"
                     allowClear
                     style={{ width: 180 }}
-                    filterOption={(input, option) =>
-                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
-                    onChange={() => handleFilterChange({}, form.getFieldsValue())}
-                    options={list.map(item => ({
-                      value: item.symbol,
-                      label: `${item.symbol} - ${item.symbolName}`,
-                    }))}
+                    onSearch={handleSymbolSearch}
+                    onPressEnter={(e) => handleSymbolSearch((e.target as HTMLInputElement).value)}
                   />
                 </Form.Item>
               </Space>
@@ -312,13 +365,43 @@ const SubscriptionList: React.FC = () => {
 
       {/* 表格区域 */}
       <Card className="table-card" bordered={false}>
-        <Alert
-          message="订阅说明"
-          description="您可以根据需要创建股票或基金的风险提醒订阅。系统将在每个交易日的指定时间检测涨跌幅或价格变化，超过阈值时发送提醒通知。"
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
+        {/* 批量操作区域 - 表格上方，只有选中时才显示 */}
+        {selectedRowKeys.length > 0 && (
+          <div className="batch-actions" style={{ marginBottom: 16, padding: '12px 16px', background: '#f6f6f6', borderRadius: 4 }}>
+            <Space size="middle">
+              <Text type="secondary">
+                已选择 <Text strong>{selectedRowKeys.length}</Text> 项
+              </Text>
+              <Button
+                icon={<PlayCircleOutlined />}
+                onClick={handleBatchActivate}
+              >
+                批量启用
+              </Button>
+              <Button
+                icon={<PauseCircleOutlined />}
+                onClick={handleBatchDeactivate}
+              >
+                批量停用
+              </Button>
+              <Popconfirm
+                title="确认删除"
+                description={`确定要删除选中的 ${selectedRowKeys.length} 个订阅吗？删除后无法恢复。`}
+                onConfirm={handleBatchDelete}
+                okText="确认删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                >
+                  批量删除
+                </Button>
+              </Popconfirm>
+            </Space>
+          </div>
+        )}
 
         <Table
           rowSelection={rowSelection}
@@ -334,51 +417,6 @@ const SubscriptionList: React.FC = () => {
           }}
           scroll={{ x: 1000 }}
         />
-
-        {/* 批量操作区域 - 表格下方 */}
-        {list.length > 0 && (
-          <div className="batch-actions">
-            <div className="batch-actions-left">
-              <Text type="secondary">
-                已选择 <Text strong>{selectedRowKeys.length}</Text> 项
-              </Text>
-            </div>
-            <div className="batch-actions-right">
-              <Space size="middle">
-                <Button
-                  icon={<PlayCircleOutlined />}
-                  onClick={handleBatchActivate}
-                  disabled={selectedRowKeys.length === 0}
-                >
-                  批量启用
-                </Button>
-                <Button
-                  icon={<PauseCircleOutlined />}
-                  onClick={handleBatchDeactivate}
-                  disabled={selectedRowKeys.length === 0}
-                >
-                  批量停用
-                </Button>
-                <Popconfirm
-                  title="确认删除"
-                  description={`确定要删除选中的 ${selectedRowKeys.length} 个订阅吗？删除后无法恢复。`}
-                  onConfirm={handleBatchDelete}
-                  okText="确认删除"
-                  cancelText="取消"
-                  okButtonProps={{ danger: true }}
-                >
-                  <Button
-                    danger
-                    icon={<DeleteOutlined />}
-                    disabled={selectedRowKeys.length === 0}
-                  >
-                    批量删除
-                  </Button>
-                </Popconfirm>
-              </Space>
-            </div>
-          </div>
-        )}
       </Card>
 
       {/* 创建订阅弹窗 */}
@@ -386,6 +424,17 @@ const SubscriptionList: React.FC = () => {
         visible={createModalVisible}
         onClose={() => setCreateModalVisible(false)}
         onSuccess={handleCreateSuccess}
+      />
+
+      {/* 编辑订阅弹窗 */}
+      <SubscriptionEdit
+        visible={editModalVisible}
+        subscription={editingSubscription}
+        onClose={() => {
+          setEditModalVisible(false)
+          setEditingSubscription(null)
+        }}
+        onSuccess={handleEditSuccess}
       />
     </div>
   )

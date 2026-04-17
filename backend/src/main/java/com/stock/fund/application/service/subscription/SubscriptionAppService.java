@@ -71,6 +71,14 @@ public interface SubscriptionAppService {
     List<UserSubscription> getUserSubscriptions(Long userId);
 
     /**
+     * 获取用户的所有订阅（支持查询条件过滤）
+     * @param userId 用户ID
+     * @param query 查询条件
+     * @return 订阅列表
+     */
+    List<UserSubscription> getUserSubscriptions(Long userId, com.stock.fund.domain.repository.subscription.UserSubscriptionQuery query);
+
+    /**
      * 获取用户激活的订阅
      * @param userId 用户ID
      * @return 激活的订阅列表

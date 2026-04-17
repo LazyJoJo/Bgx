@@ -250,9 +250,27 @@ const subscriptionsSlice = createSlice({
         state.loading = true
         state.error = null
       })
-      .addCase(fetchSubscriptions.fulfilled, (state, action) => {
+.addCase(fetchSubscriptions.fulfilled, (state, action) => {
         state.loading = false
-        state.list = action.payload as unknown as Subscription[]
+        // 后端UserSubscription实体使用camelCase字段名，直接映射
+        const rawList = action.payload as unknown as any[]
+        state.list = rawList.map(item => ({
+          id: item.id,
+          userId: item.userId,
+          symbol: item.symbol,
+          symbolName: item.symbolName,
+          symbolType: item.symbolType,
+          alertType: (item as any).alertType || 'PERCENTAGE_CHANGE', // 后端实体无此字段，提供默认值
+          targetPrice: (item as any).targetPrice, // 后端实体无此字段
+          targetChangePercent: item.targetChangePercent,
+          currentPrice: (item as any).currentPrice, // 后端实体无此字段
+          status: item.isActive ? 'ACTIVE' : 'INACTIVE',
+          remark: (item as any).remark || item.description, // 优先用remark，否则用description
+          validFrom: (item as any).validFrom, // 后端实体无此字段
+          validUntil: (item as any).validUntil, // 后端实体无此字段
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        }))
       })
       .addCase(fetchSubscriptions.rejected, (state, action) => {
         state.loading = false

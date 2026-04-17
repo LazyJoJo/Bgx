@@ -1,6 +1,8 @@
 package com.stock.fund.interfaces.advice;
 
-import com.stock.fund.interfaces.dto.response.ApiResponse;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -10,12 +12,13 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.stock.fund.domain.exception.BusinessException;
+import com.stock.fund.domain.exception.DataCollectionException;
+import com.stock.fund.domain.exception.ResourceNotFoundException;
+import com.stock.fund.interfaces.dto.response.ApiResponse;
 
 /**
- * 全局异常处理器
- * 统一处理 Controller 层的异常，返回统一的响应格式
+ * 全局异常处理器 统一处理 Controller 层的异常，返回统一的响应格式
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -30,6 +33,16 @@ public class GlobalExceptionHandler {
         logger.warn("业务异常: {} - {}", e.getCode(), e.getMessage());
         ApiResponse<Void> response = new ApiResponse<>(false, "[" + e.getCode() + "] " + e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * 处理资源未找到异常
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException e) {
+        logger.warn("资源未找到: {} - {}", e.getCode(), e.getMessage());
+        ApiResponse<Void> response = new ApiResponse<>(false, "[" + e.getCode() + "] " + e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**
@@ -68,6 +81,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException e) {
+        // 检查是否是已知的业务异常类型，避免重复处理
+        if (e instanceof BusinessException) {
+            // BusinessException 已被上面的 handler 处理，这里不会到达
+            // 但为了安全起见，检查一下
+            ApiResponse<Void> response = new ApiResponse<>(false,
+                    "[" + ((BusinessException) e).getCode() + "] " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
         logger.error("运行时异常: {}", e.getMessage(), e);
         ApiResponse<Void> response = ApiResponse.error("系统内部错误，请稍后重试");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
@@ -78,41 +99,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
+        // 检查是否是已知的业务异常类型
+        if (e instanceof BusinessException) {
+            ApiResponse<Void> response = new ApiResponse<>(false,
+                    "[" + ((BusinessException) e).getCode() + "] " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
         logger.error("未处理的异常: {}", e.getMessage(), e);
         ApiResponse<Void> response = ApiResponse.error("系统发生未知错误");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-    }
-
-    /**
-     * 业务异常类
-     */
-    public static class BusinessException extends RuntimeException {
-        private String code = "BUSINESS_ERROR";
-
-        public BusinessException(String message) {
-            super(message);
-        }
-
-        public BusinessException(String code, String message) {
-            super(message);
-            this.code = code;
-        }
-
-        public String getCode() {
-            return code;
-        }
-    }
-
-    /**
-     * 数据采集异常类
-     */
-    public static class DataCollectionException extends RuntimeException {
-        public DataCollectionException(String message) {
-            super(message);
-        }
-
-        public DataCollectionException(String message, Throwable cause) {
-            super(message, cause);
-        }
     }
 }
