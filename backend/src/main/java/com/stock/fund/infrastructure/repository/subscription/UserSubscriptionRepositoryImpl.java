@@ -1,5 +1,6 @@
 package com.stock.fund.infrastructure.repository.subscription;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,10 +72,7 @@ public class UserSubscriptionRepositoryImpl implements UserSubscriptionRepositor
         }
         List<UserSubscriptionPO> poList = structMapper.toPOList(subscriptions);
         userSubscriptionMapper.insertBatch(poList);
-        for (int i = 0; i < subscriptions.size(); i++) {
-            subscriptions.get(i).setId(poList.get(i).getId());
-        }
-        return subscriptions;
+        return buildSubscriptionsWithId(subscriptions, poList);
     }
 
     @Override
@@ -98,10 +96,30 @@ public class UserSubscriptionRepositoryImpl implements UserSubscriptionRepositor
         }
         List<UserSubscriptionPO> poList = structMapper.toPOList(subscriptions);
         userSubscriptionMapper.insertBatch(poList);
+        return buildSubscriptionsWithId(subscriptions, poList);
+    }
+
+    /**
+     * 构建带 ID 的订阅列表副本（遵循不可变性原则，不修改原始输入）
+     */
+    private List<UserSubscription> buildSubscriptionsWithId(List<UserSubscription> subscriptions,
+            List<UserSubscriptionPO> poList) {
+        List<UserSubscription> result = new ArrayList<>(subscriptions.size());
         for (int i = 0; i < subscriptions.size(); i++) {
-            subscriptions.get(i).setId(poList.get(i).getId());
+            UserSubscription original = subscriptions.get(i);
+            UserSubscription copy = new UserSubscription();
+            copy.setUserId(original.getUserId());
+            copy.setSymbol(original.getSymbol());
+            copy.setSymbolType(original.getSymbolType());
+            copy.setSymbolName(original.getSymbolName());
+            copy.setTargetChangePercent(original.getTargetChangePercent());
+            copy.setIsActive(original.getIsActive());
+            copy.setLastTriggered(original.getLastTriggered());
+            copy.setDescription(original.getDescription());
+            copy.setId(poList.get(i).getId());
+            result.add(copy);
         }
-        return subscriptions;
+        return result;
     }
 
     @Override

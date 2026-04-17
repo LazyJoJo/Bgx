@@ -159,7 +159,7 @@ class RiskAlertAppServiceTest {
                 subscription.setSymbol(symbol);
                 subscription.setSymbolType(symbolType);
                 subscription.setSymbolName(symbol + "名称");
-                subscription.setTargetChangePercent(targetChangePercent);
+                subscription.setTargetChangePercent(BigDecimal.valueOf(targetChangePercent));
                 subscription.setIsActive(true);
                 return subscription;
         }
@@ -167,7 +167,7 @@ class RiskAlertAppServiceTest {
         @Test
         @DisplayName("处理订阅触发的风险 - 涨跌幅超过阈值应创建风险记录")
         void processSubscriptionRisk_changeExceedThreshold_shouldCreateAlert() {
-                // given: 设置订阅，阈值5%，基准价10.95，当前价格11.50（涨幅5.02%超过阈值）
+                // given: 设置订阅，阈值5%，当前价格11.50，涨跌额0.55（涨幅约5.02%超过阈值）
                 UserSubscription subscription = createSubscription(1L, "000001", "STOCK", 5.0);
 
                 // Mock stock and quote for getYesterdayClose
@@ -176,15 +176,17 @@ class RiskAlertAppServiceTest {
                 stock.setSymbol("000001");
                 when(stockRepository.findAll()).thenReturn(List.of(stock));
 
+                // close=11.50（当前价），change=0.55（涨跌额），prevClose = 11.50 - 0.55 = 10.95
                 StockQuote quote = new StockQuote(1L);
-                quote.setClose(new BigDecimal("10.95")); // yesterday close
+                quote.setClose(new BigDecimal("11.50"));
+                quote.setChange(new BigDecimal("0.55"));
                 when(stockQuoteRepository.findAllLatestQuotes()).thenReturn(List.of(quote));
 
                 when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(any(), any(), any(), any()))
                                 .thenReturn(Optional.empty());
                 when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
 
-                // when: 涨跌幅约5.02%超过阈值5%（内部会调用getYesterdayClose获取昨日收盘价）
+                // when: 涨跌幅约5.02%超过阈值5%
                 riskAlertAppService.processSubscriptionRisk(subscription, new BigDecimal("11.50"), "14:30");
 
                 // then: 应保存风险记录
@@ -194,7 +196,7 @@ class RiskAlertAppServiceTest {
         @Test
         @DisplayName("处理订阅触发的风险 - 涨跌幅未超阈值不创建记录")
         void processSubscriptionRisk_changeBelowThreshold_shouldNotCreate() {
-                // given: 设置订阅，阈值5%，基准价10.95，当前价格11.40（涨幅4.1%未超过阈值）
+                // given: 设置订阅，阈值5%，当前价格11.40，涨跌额0.45（涨幅约4.11%未超过阈值）
                 UserSubscription subscription = createSubscription(1L, "000001", "STOCK", 5.0);
 
                 // Mock stock and quote for getYesterdayClose
@@ -203,11 +205,13 @@ class RiskAlertAppServiceTest {
                 stock.setSymbol("000001");
                 when(stockRepository.findAll()).thenReturn(List.of(stock));
 
+                // close=11.40（当前价），change=0.45（涨跌额），prevClose = 11.40 - 0.45 = 10.95
                 StockQuote quote = new StockQuote(1L);
-                quote.setClose(new BigDecimal("10.95")); // yesterday close
+                quote.setClose(new BigDecimal("11.40"));
+                quote.setChange(new BigDecimal("0.45"));
                 when(stockQuoteRepository.findAllLatestQuotes()).thenReturn(List.of(quote));
 
-                // when: 涨跌幅约4.1%未超过阈值5%（内部会调用getYesterdayClose获取昨日收盘价）
+                // when: 涨跌幅约4.11%未超过阈值5%
                 riskAlertAppService.processSubscriptionRisk(subscription, new BigDecimal("11.40"), "14:30");
 
                 // then: 不应保存
@@ -217,7 +221,7 @@ class RiskAlertAppServiceTest {
         @Test
         @DisplayName("处理订阅触发的风险 - 跌幅超过阈值应创建风险记录")
         void processSubscriptionRisk_negativeChangeExceedThreshold_shouldCreateAlert() {
-                // given: 设置订阅，阈值3%，基准价10.95，当前价格10.60（跌幅3.2%超过阈值）
+                // given: 设置订阅，阈值3%，当前价格10.60，涨跌额-0.65（跌幅约5.86%超过阈值）
                 UserSubscription subscription = createSubscription(1L, "000001", "STOCK", 3.0);
 
                 // Mock stock and quote for getYesterdayClose
@@ -226,15 +230,17 @@ class RiskAlertAppServiceTest {
                 stock.setSymbol("000001");
                 when(stockRepository.findAll()).thenReturn(List.of(stock));
 
+                // close=10.60（当前价），change=-0.65（下跌），prevClose = 10.60 - (-0.65) = 11.25
                 StockQuote quote = new StockQuote(1L);
-                quote.setClose(new BigDecimal("10.95")); // yesterday close
+                quote.setClose(new BigDecimal("10.60"));
+                quote.setChange(new BigDecimal("-0.65"));
                 when(stockQuoteRepository.findAllLatestQuotes()).thenReturn(List.of(quote));
 
                 when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(any(), any(), any(), any()))
                                 .thenReturn(Optional.empty());
                 when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
 
-                // when: 跌幅3.2%超过阈值3%（内部会调用getYesterdayClose获取昨日收盘价）
+                // when: 跌幅约5.86%超过阈值3%（绝对值比较）
                 riskAlertAppService.processSubscriptionRisk(subscription, new BigDecimal("10.60"), "14:30");
 
                 // then: 应保存风险记录

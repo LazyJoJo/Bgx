@@ -230,7 +230,10 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
                     var quotes = stockQuoteRepository.findAllLatestQuotes();
                     var quote = quotes.stream().filter(q -> stock.getId().equals(q.getStockId())).findFirst()
                             .orElse(null);
-                    return quote != null ? quote.getClose() : null; // 简化处理
+                    if (quote != null && quote.getClose() != null && quote.getChange() != null) {
+                        // 利用涨跌额反推昨日收盘价：prevClose = close - change
+                        return quote.getClose().subtract(quote.getChange());
+                    }
                 }
             } else if ("FUND".equals(symbolType)) {
                 var quotes = fundQuoteRepository.findAllLatestQuotes();
@@ -261,7 +264,7 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
             // 使用订阅的 targetChangePercent 判断是否触发风险
             if (subscription.getTargetChangePercent() != null) {
-                hasRisk = Math.abs(changePercent.doubleValue()) >= subscription.getTargetChangePercent();
+                hasRisk = changePercent.abs().compareTo(subscription.getTargetChangePercent()) >= 0;
             }
         }
 

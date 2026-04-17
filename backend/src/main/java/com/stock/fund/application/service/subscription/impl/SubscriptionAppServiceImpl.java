@@ -1,22 +1,33 @@
 package com.stock.fund.application.service.subscription.impl;
 
-import com.stock.fund.application.service.DataCollectionTargetAppService;
-import com.stock.fund.application.service.subscription.SubscriptionAppService;
-import com.stock.fund.application.service.subscription.dto.*;
-import com.stock.fund.domain.entity.DataCollectionTarget;
-import com.stock.fund.domain.entity.subscription.UserSubscription;
-import com.stock.fund.domain.repository.DataCollectionTargetRepository;
-import com.stock.fund.domain.repository.subscription.UserSubscriptionQuery;
-import com.stock.fund.domain.repository.subscription.UserSubscriptionRepository;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.stream.Collectors;
+import com.stock.fund.application.service.subscription.SubscriptionAppService;
+import com.stock.fund.application.service.subscription.dto.BatchCreateSubscriptionRequest;
+import com.stock.fund.application.service.subscription.dto.BatchCreateSubscriptionResponse;
+import com.stock.fund.application.service.subscription.dto.CheckDuplicatesRequest;
+import com.stock.fund.application.service.subscription.dto.CheckDuplicatesResponse;
+import com.stock.fund.application.service.subscription.dto.CreateSubscriptionRequest;
+import com.stock.fund.application.service.subscription.dto.CreateSubscriptionResponse;
+import com.stock.fund.application.service.subscription.dto.SubscriptionPageResponse;
+import com.stock.fund.application.service.subscription.dto.SubscriptionQueryDTO;
+import com.stock.fund.application.service.subscription.dto.UpdateSubscriptionRequest;
+import com.stock.fund.domain.entity.subscription.UserSubscription;
+import com.stock.fund.domain.repository.DataCollectionTargetRepository;
+import com.stock.fund.domain.repository.subscription.UserSubscriptionQuery;
+import com.stock.fund.domain.repository.subscription.UserSubscriptionRepository;
 
 /**
  * 订阅应用服务实现
@@ -51,9 +62,9 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
         subscription.setSymbol(request.getSymbol());
         subscription.setSymbolType(request.getSymbolType());
         subscription.setSymbolName(request.getSymbolName());
-        // BigDecimal -> Double 转换
+        // 直接设置 BigDecimal（不再转换为 Double）
         if (request.getTargetChangePercent() != null) {
-            subscription.setTargetChangePercent(request.getTargetChangePercent().doubleValue());
+            subscription.setTargetChangePercent(request.getTargetChangePercent());
         }
         subscription.setIsActive(request.getEnabled() != null && request.getEnabled() ? true : false);
 
@@ -72,76 +83,54 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchCreateSubscriptionResponse batchCreateSubscription(BatchCreateSubscriptionRequest request) {
-        logger.info("批量创建订阅: 用户ID={}, 标的数量={}, 类型={}",
-                request.getUserId(), request.getSymbols().size(), request.getSymbolType());
+        logger.info("批量创建订阅: 用户ID={}, 标的数量={}, 类型={}", request.getUserId(), request.getSymbols().size(),
+                request.getSymbolType());
 
         // 1. 校验参数
         validateBatchRequest(request);
 
         // 2. 批量查询已存在的订阅
-        List<UserSubscription> existingSubscriptions = userSubscriptionRepository
-                .findByUserIdAndSymbolsAndSymbolType(
-                        request.getUserId(),
-                        request.getSymbols(),
-                        request.getSymbolType()
-                );
+        List<UserSubscription> existingSubscriptions = userSubscriptionRepository.findByUserIdAndSymbolsAndSymbolType(
+                request.getUserId(), request.getSymbols(), request.getSymbolType());
 
-        Set<String> existingSymbols = existingSubscriptions.stream()
-                .map(UserSubscription::getSymbol)
+        Set<String> existingSymbols = existingSubscriptions.stream().map(UserSubscription::getSymbol)
                 .collect(Collectors.toSet());
 
         // 3. 过滤出需要创建的标的
-        List<String> symbolsToCreate = request.getSymbols().stream()
-                .filter(symbol -> !existingSymbols.contains(symbol))
+        List<String> symbolsToCreate = request.getSymbols().stream().filter(symbol -> !existingSymbols.contains(symbol))
                 .collect(Collectors.toList());
 
         // 4. 构建批量插入的实体列表
         List<UserSubscription> subscriptionsToCreate = symbolsToCreate.stream()
-                .map(symbol -> buildSubscription(request, symbol))
-                .collect(Collectors.toList());
+                .map(symbol -> buildSubscription(request, symbol)).collect(Collectors.toList());
 
         // 5. 批量插入
         List<UserSubscription> createdSubscriptions = userSubscriptionRepository.batchInsert(subscriptionsToCreate);
 
         // 6. 构建响应
         List<BatchCreateSubscriptionResponse.CreatedItem> createdList = createdSubscriptions.stream()
-                .map(sub -> BatchCreateSubscriptionResponse.CreatedItem.builder()
-                        .symbol(sub.getSymbol())
-                        .symbolName(sub.getSymbolName())
-                        .subscriptionId(sub.getId())
-                        .createdAt(sub.getCreatedAt() != null ? sub.getCreatedAt().toString() : null)
-                        .build())
+                .map(sub -> BatchCreateSubscriptionResponse.CreatedItem.builder().symbol(sub.getSymbol())
+                        .symbolName(sub.getSymbolName()).subscriptionId(sub.getId())
+                        .createdAt(sub.getCreatedAt() != null ? sub.getCreatedAt().toString() : null).build())
                 .collect(Collectors.toList());
 
         List<BatchCreateSubscriptionResponse.ExistingItem> existingList = existingSubscriptions.stream()
-                .map(sub -> BatchCreateSubscriptionResponse.ExistingItem.builder()
-                        .symbol(sub.getSymbol())
-                        .symbolName(sub.getSymbolName())
-                        .subscriptionId(sub.getId())
-                        .createdAt(sub.getCreatedAt() != null ? sub.getCreatedAt().toString() : null)
-                        .build())
+                .map(sub -> BatchCreateSubscriptionResponse.ExistingItem.builder().symbol(sub.getSymbol())
+                        .symbolName(sub.getSymbolName()).subscriptionId(sub.getId())
+                        .createdAt(sub.getCreatedAt() != null ? sub.getCreatedAt().toString() : null).build())
                 .collect(Collectors.toList());
 
         List<BatchCreateSubscriptionResponse.FailureItem> failureList = request.getSymbols().stream()
-                .filter(symbol -> !existingSymbols.contains(symbol) &&
-                        createdSubscriptions.stream().noneMatch(s -> s.getSymbol().equals(symbol)))
-                .map(symbol -> BatchCreateSubscriptionResponse.FailureItem.builder()
-                        .symbol(symbol)
-                        .reason("创建失败")
-                        .errorCode("SYSTEM_ERROR")
-                        .build())
+                .filter(symbol -> !existingSymbols.contains(symbol)
+                        && createdSubscriptions.stream().noneMatch(s -> s.getSymbol().equals(symbol)))
+                .map(symbol -> BatchCreateSubscriptionResponse.FailureItem.builder().symbol(symbol).reason("创建失败")
+                        .errorCode("SYSTEM_ERROR").build())
                 .collect(Collectors.toList());
 
-        return BatchCreateSubscriptionResponse.builder()
-                .batchId(generateBatchId())
-                .totalCount(request.getSymbols().size())
-                .createdCount(createdSubscriptions.size())
-                .existingCount(existingSubscriptions.size())
-                .failureCount(failureList.size())
-                .createdList(createdList)
-                .existingList(existingList)
-                .failureList(failureList)
-                .build();
+        return BatchCreateSubscriptionResponse.builder().batchId(generateBatchId())
+                .totalCount(request.getSymbols().size()).createdCount(createdSubscriptions.size())
+                .existingCount(existingSubscriptions.size()).failureCount(failureList.size()).createdList(createdList)
+                .existingList(existingList).failureList(failureList).build();
     }
 
     @Override
@@ -178,8 +167,8 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
                 .orElseThrow(() -> new IllegalArgumentException("订阅不存在: ID=" + subscriptionId));
 
         if (request.getTargetChangePercent() != null) {
-            // BigDecimal -> Double 转换
-            subscription.setTargetChangePercent(request.getTargetChangePercent().doubleValue());
+            // 直接设置 BigDecimal（不再转换为 Double）
+            subscription.setTargetChangePercent(request.getTargetChangePercent());
         }
         if (request.getIsActive() != null) {
             subscription.setIsActive(request.getIsActive());
@@ -201,15 +190,9 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
     public SubscriptionPageResponse<UserSubscription> querySubscriptions(SubscriptionQueryDTO query) {
         logger.debug("分页查询订阅: userId={}, page={}, size={}", query.getUserId(), query.getPage(), query.getSize());
 
-        UserSubscriptionQuery queryObj = UserSubscriptionQuery.builder()
-                .userId(query.getUserId())
-                .symbol(query.getSymbol())
-                .symbolType(query.getSymbolType())
-                .status(query.getStatus())
-                .page(query.getPage())
-                .size(query.getSize())
-                .sort(query.getSort())
-                .build();
+        UserSubscriptionQuery queryObj = UserSubscriptionQuery.builder().userId(query.getUserId())
+                .symbol(query.getSymbol()).symbolType(query.getSymbolType()).status(query.getStatus())
+                .page(query.getPage()).size(query.getSize()).sort(query.getSort()).build();
 
         List<UserSubscription> records = userSubscriptionRepository.findByUserIdWithPage(queryObj);
         long total = userSubscriptionRepository.countByUserId(queryObj);
@@ -225,8 +208,8 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public List<UserSubscription> getUserSubscriptions(Long userId, UserSubscriptionQuery query) {
-        logger.debug("获取用户订阅列表: 用户ID={}, symbol={}, symbolType={}, status={}",
-                userId, query.getSymbol(), query.getSymbolType(), query.getStatus());
+        logger.debug("获取用户订阅列表: 用户ID={}, symbol={}, symbolType={}, status={}", userId, query.getSymbol(),
+                query.getSymbolType(), query.getStatus());
         return userSubscriptionRepository.findByUserIdWithPage(query);
     }
 
@@ -261,56 +244,40 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public CheckDuplicatesResponse checkDuplicates(CheckDuplicatesRequest request) {
-        logger.info("检测重复订阅: 用户ID={}, 标的数量={}, 类型={}",
-                request.getUserId(), request.getSymbols().size(), request.getSymbolType());
+        logger.info("检测重复订阅: 用户ID={}, 标的数量={}, 类型={}", request.getUserId(), request.getSymbols().size(),
+                request.getSymbolType());
 
         // 批量查询已存在的订阅
-        List<UserSubscription> existingSubscriptions = userSubscriptionRepository
-                .findByUserIdAndSymbolsAndSymbolType(
-                        request.getUserId(),
-                        request.getSymbols(),
-                        request.getSymbolType()
-                );
+        List<UserSubscription> existingSubscriptions = userSubscriptionRepository.findByUserIdAndSymbolsAndSymbolType(
+                request.getUserId(), request.getSymbols(), request.getSymbolType());
 
         // 按标的分组
         Map<String, List<UserSubscription>> subsBySymbol = existingSubscriptions.stream()
                 .collect(Collectors.groupingBy(UserSubscription::getSymbol));
 
         // 构建重复项列表
-        List<CheckDuplicatesResponse.DuplicateItem> duplicates = subsBySymbol.entrySet().stream()
-                .map(entry -> {
-                    String symbol = entry.getKey();
-                    List<UserSubscription> subs = entry.getValue();
-                    UserSubscription firstSub = subs.get(0);
+        List<CheckDuplicatesResponse.DuplicateItem> duplicates = subsBySymbol.entrySet().stream().map(entry -> {
+            String symbol = entry.getKey();
+            List<UserSubscription> subs = entry.getValue();
+            UserSubscription firstSub = subs.get(0);
 
-                    List<CheckDuplicatesResponse.ExistingSubscription> existingSubInfos = subs.stream()
-                            .map(sub -> CheckDuplicatesResponse.ExistingSubscription.builder()
-                                    .subscriptionId(sub.getId())
-                                    .createdAt(sub.getCreatedAt() != null ? sub.getCreatedAt().toString() : null)
-                                    .status(sub.getIsActive() != null && sub.getIsActive() ? "ACTIVE" : "INACTIVE")
-                                    .build())
-                            .collect(Collectors.toList());
+            List<CheckDuplicatesResponse.ExistingSubscription> existingSubInfos = subs.stream()
+                    .map(sub -> CheckDuplicatesResponse.ExistingSubscription.builder().subscriptionId(sub.getId())
+                            .createdAt(sub.getCreatedAt() != null ? sub.getCreatedAt().toString() : null)
+                            .status(sub.getIsActive() != null && sub.getIsActive() ? "ACTIVE" : "INACTIVE").build())
+                    .collect(Collectors.toList());
 
-                    return CheckDuplicatesResponse.DuplicateItem.builder()
-                            .symbol(symbol)
-                            .symbolName(firstSub.getSymbolName())
-                            .existingSubscriptions(existingSubInfos)
-                            .build();
-                })
-                .collect(Collectors.toList());
+            return CheckDuplicatesResponse.DuplicateItem.builder().symbol(symbol).symbolName(firstSub.getSymbolName())
+                    .existingSubscriptions(existingSubInfos).build();
+        }).collect(Collectors.toList());
 
         // 可创建的标的
         Set<String> existingSymbolSet = subsBySymbol.keySet();
         List<String> availableSymbols = request.getSymbols().stream()
-                .filter(symbol -> !existingSymbolSet.contains(symbol))
-                .collect(Collectors.toList());
+                .filter(symbol -> !existingSymbolSet.contains(symbol)).collect(Collectors.toList());
 
-        return CheckDuplicatesResponse.builder()
-                .checkedCount(request.getSymbols().size())
-                .duplicateCount(duplicates.size())
-                .duplicates(duplicates)
-                .availableSymbols(availableSymbols)
-                .build();
+        return CheckDuplicatesResponse.builder().checkedCount(request.getSymbols().size())
+                .duplicateCount(duplicates.size()).duplicates(duplicates).availableSymbols(availableSymbols).build();
     }
 
     // 校验批量请求参数
@@ -335,9 +302,9 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
         subscription.setUserId(request.getUserId());
         subscription.setSymbol(symbol);
         subscription.setSymbolType(request.getSymbolType());
-        // BigDecimal -> Double 转换
+        // 直接设置 BigDecimal（不再转换为 Double）
         if (request.getTargetChangePercent() != null) {
-            subscription.setTargetChangePercent(request.getTargetChangePercent().doubleValue());
+            subscription.setTargetChangePercent(request.getTargetChangePercent());
         }
         subscription.setIsActive(request.getEnabled() != null && request.getEnabled());
         subscription.setDescription(request.getSymbolName());
