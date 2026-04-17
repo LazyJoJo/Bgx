@@ -54,7 +54,7 @@ class ApiClient {
       (response: AxiosResponse) => {
         const data = response.data as ApiResponse
         // 统一处理业务逻辑错误
-        if (data && data.success === false) {
+        if (data && data.success !== true) {
           return Promise.reject(new AppError(data.error || '操作失败', 'BUSINESS_ERROR'))
         }
         return response.data
@@ -65,7 +65,8 @@ class ApiClient {
           // 未授权，跳转到登录页
           localStorage.removeItem(AUTH_TOKEN_KEY)
           localStorage.removeItem(USER_ID_KEY)
-          window.location.href = '/login'
+          // 使用 location.replace 避免产生历史记录并减少竞态风险
+          window.location.replace('/login')
           return Promise.reject(new AppError('未授权，请重新登录', 'UNAUTHORIZED', 401))
         }
         const message = error.response?.data?.error || error.message || '网络错误'
