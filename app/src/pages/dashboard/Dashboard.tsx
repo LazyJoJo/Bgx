@@ -7,8 +7,7 @@ import {
   WarningOutlined
 } from '@ant-design/icons'
 import { dashboardApi } from '@services/api/dashboard'
-import { riskAlertsApi } from '@services/api/riskAlerts'
-import { subscriptionsApi, Subscription } from '@services/api/subscriptions'
+import { Subscription, subscriptionsApi } from '@services/api/subscriptions'
 import { Button, Card, Col, Row, Space, Statistic, Table, Tag, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -36,13 +35,11 @@ const Dashboard = () => {
     try {
       const userId = Number(localStorage.getItem('userId')) || 1
 
-      const [statsResponse, subscriptionsResponse, todayRiskCountResponse] = await Promise.all([
+      const [statsResponse, subscriptionsResponse] = await Promise.all([
         dashboardApi.getDashboardStats(),
-        subscriptionsApi.getSubscriptions(userId, { limit: 5 }),
-        riskAlertsApi.getTodayRiskAlertCount(userId)
+        subscriptionsApi.getSubscriptions(userId, { limit: 5 })
       ])
 
-      const todayRiskCount = todayRiskCountResponse.success ? todayRiskCountResponse.data.total : 0
       const subscriptions = subscriptionsResponse.success ? subscriptionsResponse.data : []
 
       // 活跃订阅数
@@ -55,7 +52,7 @@ const Dashboard = () => {
         totalFunds: statsResponse.totalFunds || 0,
         activeSubscriptions: activeSubscriptionsCount,
         triggeredSubscriptions: triggeredSubscriptionsCount,
-        riskAlertCount: todayRiskCount
+        riskAlertCount: statsResponse.triggeredAlerts || 0
       })
 
       setRecentSubscriptions(subscriptions.slice(0, 5))

@@ -29,10 +29,13 @@ public class DataCollectionTargetController {
     @Autowired
     private DataCollectionTargetAppService dataCollectionTargetAppService;
 
-    @PostMapping
-    @Operation(summary = "创建采集目标", description = "新增一个数据采集目标")
-    public ApiResponse<DataCollectionTarget> createTarget(@RequestBody DataCollectionTarget target) {
-        DataCollectionTarget createdTarget = dataCollectionTargetAppService.createTarget(target);
+    @PostMapping("/createByCode")
+    @Operation(summary = "根据代码创建采集目标", description = "根据基金代码自动获取基金信息并创建采集目标")
+    public ApiResponse<DataCollectionTarget> createTargetByCode(@RequestParam String code) {
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("基金代码不能为空");
+        }
+        DataCollectionTarget createdTarget = dataCollectionTargetAppService.createTargetByCode(code.trim());
         return ApiResponse.success("采集目标创建成功", createdTarget);
     }
 

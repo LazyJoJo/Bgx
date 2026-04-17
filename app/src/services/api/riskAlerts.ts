@@ -1,5 +1,5 @@
+import { ApiResponse, NotificationUnreadCount, RiskAlert } from '@/types'
 import apiClient from './client'
-import { RiskAlert, NotificationUnreadCount, ApiResponse } from '@/types'
 
 export const riskAlertsApi = {
   // 获取用户风险提醒列表（合并后的数据）
@@ -18,6 +18,10 @@ export const riskAlertsApi = {
   // 标记所有风险提醒为已读
   markAllAsRead: (userId: number = 1) =>
     apiClient.post<ApiResponse<string>>(`/risk-alerts/user/${userId}/mark-read`),
+
+  // 标记单条风险提醒为已读
+  markAsRead: (id: number) =>
+    apiClient.patch<ApiResponse<string>>(`/risk-alerts/${id}/read`),
 
   // 手动触发风险检测（测试用）
   checkRiskAlerts: () =>

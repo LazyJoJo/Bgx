@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 /**
  * 风险提醒 API E2E 测试
@@ -154,9 +154,9 @@ test.describe('风险提醒 API E2E', () => {
     test('RA-4.2 不存在的ID应返回错误', async ({ request }) => {
       const response = await request.patch(`${API_BASE}/999999/read`)
 
-      // 可能返回错误或成功（根据后端实现）
+      // 不存在的ID应返回错误
       const body = await response.json()
-      expect(body.success === true || body.success === false).toBe(true)
+      expect(body.success).toBe(false)
     })
   })
 
@@ -218,12 +218,12 @@ test.describe('风险提醒 API E2E', () => {
     test('RA-7.1 触发风险检测应成功', async ({ request }) => {
       const response = await request.post(`${API_BASE}/check`)
 
-      // 风险检测可能需要较长时间
+      // 风险检测可能需要较长时间或返回500
       expect(response.ok() || response.status() === 500).toBeTruthy()
 
       const body = await response.json()
       // 可能成功或失败（取决于是否有可检测的风险）
-      expect(body.success === true || body.success === false).toBe(true)
+      expect(typeof body.success).toBe('boolean')
     })
   })
 
@@ -254,7 +254,7 @@ test.describe('风险提醒 API E2E', () => {
 
       const body = await response.json()
       // 后端可能抛出异常或返回错误
-      expect(body.success === true || body.success === false).toBe(true)
+      expect(body.success).toBe(false)
     })
   })
 })

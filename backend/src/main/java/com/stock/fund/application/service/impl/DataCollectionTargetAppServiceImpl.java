@@ -6,24 +6,58 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.stock.fund.application.service.DataCollectionTargetAppService;
+import com.stock.fund.application.service.FundDataFetcher;
 import com.stock.fund.domain.entity.DataCollectionTarget;
+import com.stock.fund.domain.exception.InvalidFundCodeException;
 import com.stock.fund.domain.repository.DataCollectionTargetRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetAppService {
 
     private final DataCollectionTargetRepository dataCollectionTargetRepository;
+    private final FundDataFetcher fundDataFetcher;
 
     @Override
-    public DataCollectionTarget createTarget(DataCollectionTarget target) {
-        // 验证代码是否已存在
-        if (dataCollectionTargetRepository.findByCode(target.getCode()).isPresent()) {
-            throw new IllegalArgumentException("采集目标代码已存在: " + target.getCode());
+    public DataCollectionTarget createTargetByCode(String code) {
+        // 防御性校验：防止空字符串或仅空白字符的代码
+        if (code == null || code.trim().isEmpty()) {
+            throw new IllegalArgumentException("基金代码不能为空");
         }
+        String trimmedCode = code.trim();
+
+        // 如果已存在则直接返回（幂等性保障）
+        var existing = dataCollectionTargetRepository.findByCode(trimmedCode);
+        if (existing.isPresent()) {
+            log.debug("采集目标 {} 已存在，直接返回", trimmedCode);
+            return existing.get();
+        }
+
+        // 创建新的采集目标
+        DataCollectionTarget target = new DataCollectionTarget();
+        target.setCode(trimmedCode);
+        target.setActive(true);
+
+        // 使用独立的 FundDataFetcher Bean 获取基金信息（支持重试）
+        // 注意：此端点仅支持 FUND 类型，STOCK 类型需使用其他接口
+        var fundQuote = fundDataFetcher.fetchFundDataWithRetry(trimmedCode);
+
+        if (fundQuote != null) {
+            // 成功获取基金数据，确定为基金类型
+            target.setType("FUND");
+            target.setName(fundQuote.getFundName());
+            log.info("成功获取基金 {} 的名称: {}", trimmedCode, fundQuote.getFundName());
+        } else {
+            // 未能获取基金数据，拒绝创建（无效代码）
+            log.error("无法创建采集目标 {}：无法获取有效的基金数据，该代码可能无效或为股票代码（此接口仅支持基金类型）", trimmedCode);
+            throw new InvalidFundCodeException(trimmedCode, "无法获取有效的基金数据，请确认是否为有效的基金代码（此接口仅支持基金类型）");
+        }
+
         return dataCollectionTargetRepository.save(target);
     }
 

@@ -1,26 +1,23 @@
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 /**
  * 数据采集目标管理 API E2E 测试
  * 测试 /api/data-collection-targets 接口的各种场景
+ * 
+ * 注意：后端已删除通用的 POST /api/data-collection-targets 接口，
+ * 仅保留 POST /api/data-collection-targets/createByCode?code={code} 用于创建基金类型目标。
+ * 因此部分测试需要使用现有数据或跳过。
  */
 test.describe('数据采集目标管理 API E2E', () => {
   const API_BASE = '/api/data-collection-targets'
 
-  test.describe('CRUD操作', () => {
+  test.describe('快速创建操作 (createByCode)', () => {
     test('CT-1.1 创建采集目标应成功', async ({ request }) => {
-      const uniqueCode = `TEST_${Date.now()}`
+      // 使用6位数字代码（基金代码格式）
+      const uniqueCode = `${Date.now().toString().slice(-6)}`
 
-      const target = {
-        code: uniqueCode,
-        name: '测试目标',
-        type: 'STOCK',
-        category: '主板',
-        collectionInterval: 60,
-        isActive: true
-      }
-
-      const response = await request.post(API_BASE, { data: target })
+      // 使用 createByCode 端点创建采集目标
+      const response = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
 
       expect(response.ok()).toBeTruthy()
 
@@ -30,37 +27,31 @@ test.describe('数据采集目标管理 API E2E', () => {
       expect(body.data.code).toBe(uniqueCode)
     })
 
-    test('CT-1.2 创建重复代码目标应返回错误', async ({ request }) => {
-      const uniqueCode = `DUPLICATE_${Date.now()}`
-
-      const target = {
-        code: uniqueCode,
-        name: '测试目标',
-        type: 'STOCK',
-        isActive: true
-      }
+    test('CT-1.2 创建重复代码目标应返回已存在的目标（幂等设计）', async ({ request }) => {
+      // 使用6位数字代码（基金代码格式）
+      const uniqueCode = `${Date.now().toString().slice(-6)}`
 
       // 创建第一个
-      await request.post(API_BASE, { data: target })
+      const firstResponse = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
+      const firstBody = await firstResponse.json()
+      expect(firstBody.success).toBe(true)
+      expect(firstBody.data.code).toBe(uniqueCode)
+      const firstId = firstBody.data?.id
 
-      // 尝试创建重复的
-      const response = await request.post(API_BASE, { data: target })
+      // 尝试创建重复的 - 应返回已存在的目标（幂等设计）
+      const secondResponse = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
+      const secondBody = await secondResponse.json()
+      expect(secondBody.success).toBe(true)
+      expect(secondBody.data.code).toBe(uniqueCode)
 
-      const body = await response.json()
-      // 应该返回错误或成功（取决于后端实现）
-      expect(body.success === true || body.success === false).toBe(true)
+      // 验证返回的是同一对象（幂等性：相同代码应返回相同ID）
+      expect(secondBody.data?.id).toBe(firstId)
     })
 
     test('CT-1.3 根据ID查询目标应成功', async ({ request }) => {
       // 先创建一个目标
-      const uniqueCode = `QUERY_${Date.now()}`
-      const createTarget = {
-        code: uniqueCode,
-        name: '查询测试',
-        type: 'FUND',
-        isActive: true
-      }
-      const createResponse = await request.post(API_BASE, { data: createTarget })
+      const uniqueCode = `${Date.now().toString().slice(-6)}`
+      const createResponse = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
       const created = await createResponse.json()
 
       if (created.data?.id) {
@@ -77,42 +68,34 @@ test.describe('数据采集目标管理 API E2E', () => {
     })
 
     test('CT-1.4 根据代码查询目标应成功', async ({ request }) => {
-      const uniqueCode = `CODE_${Date.now()}`
+      // 使用真实基金代码创建目标
+      const response = await request.post(`${API_BASE}/createByCode?code=000001`)
 
-      const target = {
-        code: uniqueCode,
-        name: '按代码查询测试',
-        type: 'STOCK',
-        isActive: true
+      if (response.ok()) {
+        const body = await response.json()
+        if (body.success && body.data.code) {
+          // 按代码查询
+          const getResponse = await request.get(`${API_BASE}/code/${body.data.code}`)
+
+          expect(getResponse.ok()).toBeTruthy()
+
+          const getBody = await getResponse.json()
+          expect(getBody.success).toBe(true)
+          expect(getBody.data.code).toBe(body.data.code)
+        }
       }
-
-      await request.post(API_BASE, { data: target })
-
-      const response = await request.get(`${API_BASE}/code/${uniqueCode}`)
-
-      expect(response.ok()).toBeTruthy()
-
-      const body = await response.json()
-      expect(body.success).toBe(true)
-      expect(body.data.code).toBe(uniqueCode)
     })
 
     test('CT-1.5 更新目标应成功', async ({ request }) => {
       // 创建目标
-      const uniqueCode = `UPDATE_${Date.now()}`
-      const target = {
-        code: uniqueCode,
-        name: '原始名称',
-        type: 'STOCK',
-        isActive: true
-      }
-      const createResponse = await request.post(API_BASE, { data: target })
+      const uniqueCode = `${Date.now().toString().slice(-6)}`
+      const createResponse = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
       const created = await createResponse.json()
 
       if (created.data?.id) {
-        // 更新目标
+        // 更新目标名称
         const updateData = {
-          ...target,
+          ...created.data,
           name: '更新后的名称'
         }
 
@@ -130,14 +113,8 @@ test.describe('数据采集目标管理 API E2E', () => {
 
     test('CT-1.6 删除目标应成功', async ({ request }) => {
       // 创建目标
-      const uniqueCode = `DELETE_${Date.now()}`
-      const target = {
-        code: uniqueCode,
-        name: '删除测试',
-        type: 'STOCK',
-        isActive: true
-      }
-      const createResponse = await request.post(API_BASE, { data: target })
+      const uniqueCode = `${Date.now().toString().slice(-6)}`
+      const createResponse = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
       const created = await createResponse.json()
 
       if (created.data?.id) {
@@ -169,13 +146,17 @@ test.describe('数据采集目标管理 API E2E', () => {
     })
 
     test('CT-2.2 按类型查询应返回对应类型的目标', async ({ request }) => {
-      const response = await request.get(`${API_BASE}/type/STOCK`)
+      const response = await request.get(`${API_BASE}/type/FUND`)
 
       expect(response.ok()).toBeTruthy()
 
       const body = await response.json()
       if (body.success) {
         expect(Array.isArray(body.data)).toBe(true)
+        // 验证返回的都是 FUND 类型
+        body.data.forEach((target: any) => {
+          expect(target.type).toBe('FUND')
+        })
       }
     })
 
@@ -187,7 +168,7 @@ test.describe('数据采集目标管理 API E2E', () => {
       const body = await response.json()
       if (body.success) {
         expect(Array.isArray(body.data)).toBe(true)
-        // 所有返回的目标应该是激活状态（检查字段名可能不同）
+        // 所有返回的目标应该是激活状态
         body.data.forEach((target: any) => {
           const isActive = target.isActive ?? target.active ?? target.status === 'ACTIVE'
           expect(isActive).toBeTruthy()
@@ -217,29 +198,28 @@ test.describe('数据采集目标管理 API E2E', () => {
     })
 
     test('CT-2.6 搜索目标应返回匹配结果', async ({ request }) => {
-      // 创建测试目标
-      const uniqueCode = `SEARCH_${Date.now()}`
-      const target = {
-        code: uniqueCode,
-        name: '搜索测试目标',
-        type: 'STOCK',
-        isActive: true
-      }
-      await request.post(API_BASE, { data: target })
+      // 使用真实基金代码创建目标
+      const createResponse = await request.post(`${API_BASE}/createByCode?code=000001`)
 
-      // 搜索
-      const response = await request.get(`${API_BASE}/search?keyword=${uniqueCode}`)
+      if (createResponse.ok()) {
+        const body = await createResponse.json()
+        if (body.success && body.data && body.data.name) {
+          // 使用基金名称关键词搜索
+          const keyword = body.data.name.substring(0, 2) // 取名称前2个字符
+          const response = await request.get(`${API_BASE}/search?keyword=${encodeURIComponent(keyword)}`)
 
-      expect(response.ok()).toBeTruthy()
+          expect(response.ok()).toBeTruthy()
 
-      const body = await response.json()
-      if (body.success) {
-        expect(Array.isArray(body.data)).toBe(true)
+          const searchBody = await response.json()
+          if (searchBody.success) {
+            expect(Array.isArray(searchBody.data)).toBe(true)
+          }
+        }
       }
     })
 
     test('CT-2.7 搜索带类型过滤应返回匹配结果', async ({ request }) => {
-      const response = await request.get(`${API_BASE}/search?type=STOCK&keyword=浦`)
+      const response = await request.get(`${API_BASE}/search?type=FUND&keyword=基金`)
 
       expect(response.ok()).toBeTruthy()
 
@@ -253,17 +233,15 @@ test.describe('数据采集目标管理 API E2E', () => {
   test.describe('激活/停用操作', () => {
     test('CT-3.1 激活目标应成功', async ({ request }) => {
       // 创建停用状态的目标
-      const uniqueCode = `ACT_${Date.now()}`
-      const target = {
-        code: uniqueCode,
-        name: '激活测试',
-        type: 'STOCK',
-        isActive: false
-      }
-      const createResponse = await request.post(API_BASE, { data: target })
+      const uniqueCode = `${Date.now().toString().slice(-6)}`
+      const createResponse = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
       const created = await createResponse.json()
 
       if (created.data?.id) {
+        // 先停用
+        await request.post(`${API_BASE}/${created.data.id}/deactivate`)
+
+        // 再激活
         const response = await request.post(`${API_BASE}/${created.data.id}/activate`)
 
         expect(response.ok()).toBeTruthy()
@@ -275,17 +253,12 @@ test.describe('数据采集目标管理 API E2E', () => {
 
     test('CT-3.2 停用目标应成功', async ({ request }) => {
       // 创建激活状态的目标
-      const uniqueCode = `DEACT_${Date.now()}`
-      const target = {
-        code: uniqueCode,
-        name: '停用测试',
-        type: 'STOCK',
-        isActive: true
-      }
-      const createResponse = await request.post(API_BASE, { data: target })
+      const uniqueCode = `${Date.now().toString().slice(-6)}`
+      const createResponse = await request.post(`${API_BASE}/createByCode?code=${uniqueCode}`)
       const created = await createResponse.json()
 
       if (created.data?.id) {
+        // 停用
         const response = await request.post(`${API_BASE}/${created.data.id}/deactivate`)
 
         expect(response.ok()).toBeTruthy()
@@ -296,23 +269,18 @@ test.describe('数据采集目标管理 API E2E', () => {
     })
 
     test('CT-3.3 按代码停用目标应成功', async ({ request }) => {
-      const uniqueCode = `DEACTCODE_${Date.now()}`
+      // 使用真实基金代码
+      const createResponse = await request.post(`${API_BASE}/createByCode?code=000001`)
 
-      const target = {
-        code: uniqueCode,
-        name: '按代码停用测试',
-        type: 'STOCK',
-        isActive: true
+      if (createResponse.ok()) {
+        const body = await createResponse.json()
+        if (body.success && body.data && body.data.code) {
+          // 按代码停用
+          const response = await request.post(`${API_BASE}/code/${body.data.code}/deactivate`)
+
+          expect(response.ok()).toBeTruthy()
+        }
       }
-      await request.post(API_BASE, { data: target })
-
-      const response = await request.post(`${API_BASE}/code/${uniqueCode}/deactivate`)
-
-      const body = await response.json()
-      console.log('CT-3.3 response:', body)
-
-      // 后端可能不支持按代码停用，或者实现有问题
-      expect(response.ok() || !response.ok()).toBeTruthy()
     })
   })
 
@@ -328,7 +296,7 @@ test.describe('数据采集目标管理 API E2E', () => {
     })
 
     test('CT-4.2 按类型统计数量应成功', async ({ request }) => {
-      const response = await request.get(`${API_BASE}/count/type/STOCK`)
+      const response = await request.get(`${API_BASE}/count/type/FUND`)
 
       expect(response.ok()).toBeTruthy()
 
@@ -351,7 +319,7 @@ test.describe('数据采集目标管理 API E2E', () => {
   test.describe('快速添加操作', () => {
     test('CT-5.1 快速添加基金目标应成功', async ({ request }) => {
       // 使用真实基金代码测试
-      const response = await request.post(`${API_BASE}/add-fund?fundCode=000001`)
+      const response = await request.post(`${API_BASE}/createByCode?code=000001`)
 
       const body = await response.json()
       // 可能成功或失败（取决于基金代码是否有效）
@@ -362,11 +330,12 @@ test.describe('数据采集目标管理 API E2E', () => {
     })
 
     test('CT-5.2 添加无效基金代码应返回错误', async ({ request }) => {
-      const response = await request.post(`${API_BASE}/add-fund?fundCode=INVALID_CODE_99999`)
+      // 使用无效代码 - 5位数字格式，不可能匹配任何基金
+      const response = await request.post(`${API_BASE}/createByCode?code=99999`)
 
       const body = await response.json()
-      // 应该返回错误
-      expect(body.success === true || body.success === false).toBe(true)
+      // 应该返回错误（因为无法获取有效的基金数据）
+      expect(body.success).toBe(false)
     })
   })
 
@@ -382,20 +351,20 @@ test.describe('数据采集目标管理 API E2E', () => {
       const response = await request.delete(`${API_BASE}/999999`)
 
       const body = await response.json()
-      expect(body.success === true || body.success === false).toBe(true)
+      expect(body.success).toBe(false)
     })
 
     test('CT-6.3 更新不存在的目标应返回错误', async ({ request }) => {
       const target = {
         code: 'NOTEXIST',
         name: '不存在',
-        type: 'STOCK'
+        type: 'FUND'
       }
 
       const response = await request.put(`${API_BASE}/999999`, { data: target })
 
       const body = await response.json()
-      expect(body.success === true || body.success === false).toBe(true)
+      expect(body.success).toBe(false)
     })
   })
 })

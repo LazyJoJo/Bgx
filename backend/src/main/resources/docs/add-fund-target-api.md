@@ -5,13 +5,13 @@
 
 ## 请求地址
 ```
-POST /api/data-collection-targets/add-fund
+POST /api/data-collection-targets/createByCode
 ```
 
 ## 请求参数
 | 参数名 | 类型 |必 | 说明 |
 |--------|------|------|------|
-| fundCode | String | 是 |基代码 |
+| code | String | 是 |基代码 |
 
 ## 响应格式
 ```json
@@ -66,7 +66,7 @@ POST /api/data-collection-targets/add-fund
 
 ## 示例请求
 ```bash
-curl -X POST "http://localhost:8080/api/data-collection-targets/add-fund?fundCode=000001"
+curl -X POST "http://localhost:8080/api/data-collection-targets/createByCode?code=000001"
 ```
 
 ## 注意事项
