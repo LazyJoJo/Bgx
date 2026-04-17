@@ -1,20 +1,23 @@
 package com.stock.fund.infrastructure.repository;
 
-import com.stock.fund.domain.entity.StockQuote;
-import com.stock.fund.domain.repository.StockQuoteRepository;
-import com.stock.fund.infrastructure.entity.StockQuotePO;
-import com.stock.fund.infrastructure.mapper.StockQuoteMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.stereotype.Repository;
+
+import com.stock.fund.domain.entity.StockQuote;
+import com.stock.fund.domain.repository.StockQuoteRepository;
+import com.stock.fund.infrastructure.entity.StockQuotePO;
+import com.stock.fund.infrastructure.mapper.StockQuoteMapper;
+
+import lombok.RequiredArgsConstructor;
+
 @Repository
+@RequiredArgsConstructor
 public class StockQuoteRepositoryImpl implements StockQuoteRepository {
 
-    @Autowired
-    private StockQuoteMapper stockQuoteMapper;
+    private final StockQuoteMapper stockQuoteMapper;
 
     @Override
     public List<StockQuote> findByStockId(Long stockId) {
@@ -33,7 +36,7 @@ public class StockQuoteRepositoryImpl implements StockQuoteRepository {
         StockQuotePO po = mapToPO(stockQuote);
         if (stockQuote.getId() == null) {
             stockQuoteMapper.insert(po);
-            stockQuote.setId(po.getId()); // 设置生成的ID
+            stockQuote.setId(po.getId());
         } else {
             stockQuoteMapper.updateById(po);
         }
@@ -54,7 +57,6 @@ public class StockQuoteRepositoryImpl implements StockQuoteRepository {
         return pos.stream().map(this::mapToDomainEntity).collect(Collectors.toList());
     }
 
-    //私有方法：将PO转换为领域实体
     private StockQuote mapToDomainEntity(StockQuotePO po) {
         StockQuote stockQuote = new StockQuote();
         stockQuote.setId(po.getId());
@@ -72,7 +74,6 @@ public class StockQuoteRepositoryImpl implements StockQuoteRepository {
         return stockQuote;
     }
 
-    //私有方法：将领域实体转换为PO
     private StockQuotePO mapToPO(StockQuote stockQuote) {
         StockQuotePO po = new StockQuotePO();
         po.setId(stockQuote.getId());

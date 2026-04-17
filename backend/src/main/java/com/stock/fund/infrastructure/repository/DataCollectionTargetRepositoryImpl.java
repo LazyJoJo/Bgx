@@ -1,20 +1,23 @@
 package com.stock.fund.infrastructure.repository;
 
-import com.stock.fund.domain.entity.DataCollectionTarget;
-import com.stock.fund.domain.repository.DataCollectionTargetRepository;
-import com.stock.fund.infrastructure.entity.DataCollectionTargetPO;
-import com.stock.fund.infrastructure.mapper.DataCollectionTargetMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.stereotype.Repository;
+
+import com.stock.fund.domain.entity.DataCollectionTarget;
+import com.stock.fund.domain.repository.DataCollectionTargetRepository;
+import com.stock.fund.infrastructure.entity.DataCollectionTargetPO;
+import com.stock.fund.infrastructure.mapper.DataCollectionTargetMapper;
+
+import lombok.RequiredArgsConstructor;
+
 @Repository
+@RequiredArgsConstructor
 public class DataCollectionTargetRepositoryImpl implements DataCollectionTargetRepository {
 
-    @Autowired
-    private DataCollectionTargetMapper dataCollectionTargetMapper;
+    private final DataCollectionTargetMapper dataCollectionTargetMapper;
 
     @Override
     public Optional<DataCollectionTarget> findById(Long id) {
@@ -113,21 +116,18 @@ public class DataCollectionTargetRepositoryImpl implements DataCollectionTargetR
 
     @Override
     public long countByType(String type) {
-        return dataCollectionTargetMapper.selectCount(
-            new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<DataCollectionTargetPO>()
-                .eq("type", type)
-        );
+        return dataCollectionTargetMapper
+                .selectCount(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<DataCollectionTargetPO>()
+                        .eq("type", type));
     }
 
     @Override
     public long countByActive(Boolean active) {
-        return dataCollectionTargetMapper.selectCount(
-            new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<DataCollectionTargetPO>()
-                .eq("active", active)
-        );
+        return dataCollectionTargetMapper
+                .selectCount(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<DataCollectionTargetPO>()
+                        .eq("active", active));
     }
 
-    //私有方法：将PO转换为领域实体
     private DataCollectionTarget mapToDomainEntity(DataCollectionTargetPO po) {
         DataCollectionTarget target = new DataCollectionTarget();
         target.setId(po.getId());
@@ -147,7 +147,6 @@ public class DataCollectionTargetRepositoryImpl implements DataCollectionTargetR
         return target;
     }
 
-    //私有方法：将领域实体转换为PO
     private DataCollectionTargetPO mapToPO(DataCollectionTarget target) {
         DataCollectionTargetPO po = new DataCollectionTargetPO();
         po.setId(target.getId());

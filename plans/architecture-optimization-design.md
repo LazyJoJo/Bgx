@@ -375,8 +375,31 @@ infrastructure/client/
 - ✅ `DataCollectionTargetAppServiceImpl.java` 已改为构造函数注入
 - ✅ `DataProcessingAppServiceImpl.java` 已改为构造函数注入
 - ✅ `infrastructure/mapper/struct/UserSubscriptionStructMapper.java` 已创建示例 MapStruct Mapper
-- ⏳ 待完成：所有 `*RepositoryImpl.java` 改为构造函数注入
-- ⏳ 待完成：其他 ServiceImpl 类的构造函数注入改造
+- ✅ 所有 8 个 RepositoryImpl 已改造为构造函数注入：
+  - ✅ `UserSubscriptionRepositoryImpl.java`（并集成 MapStruct 转换）
+  - ✅ `StockRepositoryImpl.java`
+  - ✅ `StockQuoteRepositoryImpl.java`
+  - ✅ `RiskAlertRepositoryImpl.java`
+  - ✅ `FundRepositoryImpl.java`
+  - ✅ `FundQuoteRepositoryImpl.java`
+  - ✅ `DataCollectionTargetRepositoryImpl.java`
+  - ✅ `StockBatchRepository.java`
+
+**RepositoryImpl 构造函数注入改造示例**：
+```java
+@Repository
+@RequiredArgsConstructor
+public class UserSubscriptionRepositoryImpl implements UserSubscriptionRepository {
+    private final UserSubscriptionMapper userSubscriptionMapper;
+    private final UserSubscriptionStructMapper structMapper;
+
+    @Override
+    public List<UserSubscription> findByUserId(Long userId) {
+        List<UserSubscriptionPO> pos = userSubscriptionMapper.selectByUserId(userId);
+        return structMapper.toEntityList(pos);
+    }
+}
+```
 
 ### Phase 3：领域模型封装修复 ⏳
 **目标**：移除 `@Data`，修复领域模型不变性
@@ -385,6 +408,95 @@ infrastructure/client/
 - 所有 `domain/entity/*.java`
 **实施状态**：
 - ⏳ 待完成
+
+**详细实施步骤**：
+
+#### 3.1 修复 AggregateRoot 基类
+```java
+// AggregateRoot.java 当前（有问题）
+@Data
+public abstract class AggregateRoot<T> {
+    protected T id;
+    protected LocalDateTime createdAt;
+    protected LocalDateTime updatedAt;
+}
+
+// AggregateRoot.java 优化后
+public abstract class AggregateRoot<T> {
+    @Getter
+    protected T id;
+    @Getter
+    protected LocalDateTime createdAt;
+    @Getter
+    protected LocalDateTime updatedAt;
+
+    protected AggregateRoot() {}
+
+    protected AggregateRoot(T id) {
+        this.id = id;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    protected void touch() {
+        this.updatedAt = LocalDateTime.now();
+    }
+}
+```
+
+#### 3.2 修复 UserSubscription 实体
+```java
+// UserSubscription.java 优化后
+public class UserSubscription extends AggregateRoot<Long> {
+    @Getter
+    private Long userId;
+    @Getter
+    private String symbol;
+    @Getter
+    private Boolean isActive;
+    @Getter
+    private BigDecimal targetChangePercent;
+    @Getter
+    private BigDecimal targetPrice;
+    @Getter
+    private String alertType;
+
+    private UserSubscription() {}
+
+    public static UserSubscription create(Long userId, String symbol,
+            BigDecimal targetChangePercent, BigDecimal targetPrice, String alertType) {
+        UserSubscription sub = new UserSubscription();
+        sub.userId = userId;
+        sub.symbol = symbol;
+        sub.isActive = true;
+        sub.targetChangePercent = targetChangePercent;
+        sub.targetPrice = targetPrice;
+        sub.alertType = alertType;
+        return sub;
+    }
+
+    public void activate() {
+        this.isActive = true;
+        touch();
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+        touch();
+    }
+
+    public void updateTarget(BigDecimal targetChangePercent, BigDecimal targetPrice) {
+        this.targetChangePercent = targetChangePercent;
+        this.targetPrice = targetPrice;
+        touch();
+    }
+}
+```
+
+#### 3.3 修复优先级顺序
+1. 先修复 `AggregateRoot.java` 基类
+2. 再修复核心实体：`UserSubscription`、`RiskAlert`、`DataCollectionTarget`
+3. 最后修复其他实体：`Fund`、`FundQuote`、`StockBasic`、`StockQuote`
 
 ### Phase 4：应用服务拆分与 CQRS 引入 ✅ (已完成)
 **目标**：拆分臃肿服务，复杂查询下沉到 QueryService
@@ -410,6 +522,183 @@ infrastructure/client/
 **实施状态**：
 - ⏳ 待完成
 - 📝 本次提交包含前端 SubscriptionEdit 组件（新增编辑功能）和 SubscriptionList UI 改进，但尚未实现统一的错误处理中间件
+
+**详细实施步骤**：
+
+#### 5.1 创建统一错误处理中间件（Axios 拦截器）
+```typescript
+// services/api/client.ts 优化后
+import axios, { AxiosError } from 'axios';
+
+const apiClient = axios.create({
+  baseURL: '/api',
+  timeout: 30000,
+});
+
+// 响应拦截器：统一处理 success=false
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError<{ success: boolean; error?: string }>) => {
+    const originalRequest = error.config;
+    const responseData = error.response?.data;
+
+    // 后端返回 success=false 的业务错误
+    if (responseData?.success === false) {
+      return Promise.reject(new Error(responseData.error || '业务处理失败'));
+    }
+
+    // HTTP 错误处理
+    if (error.response?.status === 401) {
+      // 清除认证信息并重定向
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      window.location.href = '/login';
+      return Promise.reject(new Error('登录已过期'));
+    }
+
+    if (error.response?.status === 403) {
+      return Promise.reject(new Error('无权限访问'));
+    }
+
+    if (error.response?.status >= 500) {
+      return Promise.reject(new Error('服务器错误，请稍后重试'));
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default apiClient;
+```
+
+#### 5.2 创建 useAuth Hook
+```typescript
+// hooks/useAuth.ts 新建
+import { useCallback } from 'react';
+
+interface AuthState {
+  userId: string | null;
+  token: string | null;
+  isAuthenticated: boolean;
+}
+
+export function useAuth() {
+  const getAuth = useCallback((): AuthState => {
+    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('token');
+    return {
+      userId,
+      token,
+      isAuthenticated: !!userId && !!token,
+    };
+  }, []);
+
+  const setAuth = useCallback((userId: string, token: string) => {
+    localStorage.setItem('userId', userId);
+    localStorage.setItem('token', token);
+  }, []);
+
+  const clearAuth = useCallback(() => {
+    localStorage.removeItem('userId');
+    localStorage.removeItem('token');
+  }, []);
+
+  return {
+    ...getAuth(),
+    getAuth,
+    setAuth,
+    clearAuth,
+  };
+}
+```
+
+#### 5.3 创建 createApiThunk 工厂函数（可选）
+```typescript
+// store/apiThunk.ts 新建
+import { createAsyncThunk } from '@reduxjs/toolkit';
+import { apiClient } from '../services/api/client';
+
+interface ApiThunkConfig<T> {
+  typePrefix: string;
+  request: () => Promise<T>;
+}
+
+export function createApiThunk<T>(config: ApiThunkConfig<T>) {
+  return createAsyncThunk<T, void>(
+    config.typePrefix,
+    async (_, { rejectWithValue }) => {
+      try {
+        const response = await config.request();
+        return response;
+      } catch (error) {
+        return rejectWithValue(error instanceof Error ? error.message : '未知错误');
+      }
+    }
+  );
+}
+```
+
+#### 5.4 Slice 简化示例（以 subscriptionsSlice 为例）
+```typescript
+// store/slices/subscriptionsSlice.ts 优化后
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { apiClient } from '../services/api/client';
+import type { Subscription } from '../types';
+
+interface SubscriptionsState {
+  items: Subscription[];
+  loading: boolean;
+  error: string | null;
+}
+
+const initialState: SubscriptionsState = {
+  items: [],
+  loading: false,
+  error: null,
+};
+
+// 使用工厂函数创建 thunk
+export const fetchSubscriptions = createAsyncThunk(
+  'subscriptions/fetch',
+  async (userId: string) => {
+    const response = await apiClient.get(`/subscriptions?userId=${userId}`);
+    return response.data.data as Subscription[];
+  }
+);
+
+const subscriptionsSlice = createSlice({
+  name: 'subscriptions',
+  initialState,
+  reducers: {
+    clearError(state) {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchSubscriptions.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchSubscriptions.fulfilled, (state, action) => {
+        state.loading = false;
+        state.items = action.payload;
+      })
+      .addCase(fetchSubscriptions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+  },
+});
+
+export const { clearError } = subscriptionsSlice.actions;
+export default subscriptionsSlice.reducer;
+```
+
+#### 5.5 实施优先级
+1. 先创建 `hooks/useAuth.ts` — 封装认证信息读取
+2. 再优化 `services/api/client.ts` — 添加统一错误处理
+3. 最后简化各 Slice — 移除重复的 `if (response.success)` 判断
 
 ---
 

@@ -1,25 +1,27 @@
 package com.stock.fund.infrastructure.repository.riskalert;
 
-import com.stock.fund.domain.entity.riskalert.RiskAlert;
-import com.stock.fund.domain.repository.RiskAlertQuery;
-import com.stock.fund.domain.repository.RiskAlertRepository;
-import com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO;
-import com.stock.fund.infrastructure.mapper.riskalert.RiskAlertMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.stock.fund.domain.entity.riskalert.RiskAlert;
+import com.stock.fund.domain.repository.RiskAlertQuery;
+import com.stock.fund.domain.repository.RiskAlertRepository;
+import com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO;
+import com.stock.fund.infrastructure.mapper.riskalert.RiskAlertMapper;
+
+import lombok.RequiredArgsConstructor;
+
 @Repository
+@RequiredArgsConstructor
 public class RiskAlertRepositoryImpl implements RiskAlertRepository {
 
-    @Autowired
-    private RiskAlertMapper riskAlertMapper;
+    private final RiskAlertMapper riskAlertMapper;
 
     @Override
     public Optional<RiskAlert> findById(Long id) {
@@ -54,10 +56,10 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
     }
 
     @Override
-    public Optional<RiskAlert> findByUserIdAndSymbolAndAlertDateAndTimePoint(
-            Long userId, String symbol, LocalDate alertDate, String timePoint) {
-        RiskAlertPO po = riskAlertMapper.findByUserIdAndSymbolAndAlertDateAndTimePoint(
-                userId, symbol, alertDate, timePoint);
+    public Optional<RiskAlert> findByUserIdAndSymbolAndAlertDateAndTimePoint(Long userId, String symbol,
+            LocalDate alertDate, String timePoint) {
+        RiskAlertPO po = riskAlertMapper.findByUserIdAndSymbolAndAlertDateAndTimePoint(userId, symbol, alertDate,
+                timePoint);
         return po != null ? Optional.of(mapToDomain(po)) : Optional.empty();
     }
 
@@ -69,9 +71,8 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
 
     @Override
     public List<RiskAlert> findByUserIdWithPage(RiskAlertQuery query) {
-        List<RiskAlertPO> pos = riskAlertMapper.findByUserIdWithPage(
-                query.getUserId(), query.getStartDate(), query.getEndDate(),
-                query.getPage(), query.getSize(), query.getSort());
+        List<RiskAlertPO> pos = riskAlertMapper.findByUserIdWithPage(query.getUserId(), query.getStartDate(),
+                query.getEndDate(), query.getPage(), query.getSize(), query.getSort());
         return pos.stream().map(this::mapToDomain).collect(Collectors.toList());
     }
 

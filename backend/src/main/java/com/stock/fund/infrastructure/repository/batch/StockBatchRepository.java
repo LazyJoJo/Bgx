@@ -1,42 +1,39 @@
 package com.stock.fund.infrastructure.repository.batch;
 
-import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
-import com.stock.fund.domain.entity.Stock;
-import com.stock.fund.domain.repository.StockRepository;
-import com.stock.fund.infrastructure.entity.StockBasicPO;
-import com.stock.fund.infrastructure.mapper.StockBasicMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
+import com.stock.fund.domain.entity.Stock;
+import com.stock.fund.domain.repository.StockRepository;
+import com.stock.fund.infrastructure.entity.StockBasicPO;
+import com.stock.fund.infrastructure.mapper.StockBasicMapper;
+
+import lombok.RequiredArgsConstructor;
+
 /**
- * 仓储批量操作实现
- * 提供高性能的批量数据处理能力
+ * 仓储批量操作实现 提供高性能的批量数据处理能力
  */
 @Repository
+@RequiredArgsConstructor
 public class StockBatchRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(StockBatchRepository.class);
 
-    // 推荐的批量大小
     private static final int BATCH_SIZE = 500;
 
-    @Autowired
-    private StockBasicMapper stockBasicMapper;
-
-    @Autowired
-    private StockRepository stockRepository;
+    private final StockBasicMapper stockBasicMapper;
+    private final StockRepository stockRepository;
 
     /**
-     * 批量处理股票基本信息
-     * 优化的数据处理流程，包含批量查询、分类处理和批量操作
+     * 批量处理股票基本信息 优化的数据处理流程，包含批量查询、分类处理和批量操作
      *
      * @param stockBasics 基信息列表
      * @return 处理结果统计
@@ -64,10 +61,7 @@ public class StockBatchRepository {
             }
 
             // 2. 批量查询已存在的股票（使用一次批量查询替代 N+1 查询）
-            List<String> symbols = validStocks.stream()
-                    .map(Stock::getSymbol)
-                    .distinct()
-                    .toList();
+            List<String> symbols = validStocks.stream().map(Stock::getSymbol).distinct().toList();
 
             Map<String, Stock> existingStocks = stockRepository.findBySymbols(symbols);
 
@@ -96,8 +90,8 @@ public class StockBatchRepository {
                 processBatchUpdate(toUpdate, result);
             }
 
-            logger.info("批量处理完成 - 新增: {}, 更新: {}, 失败: {}",
-                    result.getInsertCount(), result.getUpdateCount(), result.getFailedCount());
+            logger.info("批量处理完成 - 新增: {}, 更新: {}, 失败: {}", result.getInsertCount(), result.getUpdateCount(),
+                    result.getFailedCount());
 
         } catch (Exception e) {
             logger.error("批量处理股票基本信息失败", e);
@@ -129,9 +123,7 @@ public class StockBatchRepository {
                 List<Stock> batch = stockQuotes.subList(i, endIndex);
 
                 // 转换为 PO 并使用真正的批量插入
-                List<StockBasicPO> pos = batch.stream()
-                        .map(this::mapToPO)
-                        .collect(Collectors.toList());
+                List<StockBasicPO> pos = batch.stream().map(this::mapToPO).collect(Collectors.toList());
 
                 // 使用 MyBatis-Plus 的批量插入
                 boolean success = executeBatchInsert(pos);
@@ -141,8 +133,7 @@ public class StockBatchRepository {
                     result.addFailedCount(pos.size());
                 }
 
-                logger.debug("批量插入股票行情数据: {}/{} 条",
-                        Math.min(endIndex, stockQuotes.size()), stockQuotes.size());
+                logger.debug("批量插入股票行情数据: {}/{} 条", Math.min(endIndex, stockQuotes.size()), stockQuotes.size());
             }
 
         } catch (Exception e) {
@@ -157,7 +148,7 @@ public class StockBatchRepository {
     /**
      * 分批处理大数据集
      *
-     * @param stocks     数据列表
+     * @param stocks    数据列表
      * @param batchSize 批次大小
      */
     public void processLargeDataset(List<Stock> stocks, int batchSize) {
@@ -188,11 +179,8 @@ public class StockBatchRepository {
      */
     private List<Stock> preprocessStocks(List<Stock> stocks) {
         return stocks.stream()
-                .filter(stock -> stock != null &&
-                        stock.getSymbol() != null &&
-                        !stock.getSymbol().trim().isEmpty())
-                .distinct()
-                .collect(Collectors.toList());
+                .filter(stock -> stock != null && stock.getSymbol() != null && !stock.getSymbol().trim().isEmpty())
+                .distinct().collect(Collectors.toList());
     }
 
     /**
@@ -220,9 +208,7 @@ public class StockBatchRepository {
                 int endIndex = Math.min(i + BATCH_SIZE, toInsert.size());
                 List<Stock> batch = toInsert.subList(i, endIndex);
 
-                List<StockBasicPO> pos = batch.stream()
-                        .map(this::mapToPO)
-                        .collect(Collectors.toList());
+                List<StockBasicPO> pos = batch.stream().map(this::mapToPO).collect(Collectors.toList());
 
                 boolean success = executeBatchInsert(pos);
                 if (success) {
@@ -268,9 +254,7 @@ public class StockBatchRepository {
                 int endIndex = Math.min(i + BATCH_SIZE, toUpdate.size());
                 List<Stock> batch = toUpdate.subList(i, endIndex);
 
-                List<StockBasicPO> pos = batch.stream()
-                        .map(this::mapToPO)
-                        .collect(Collectors.toList());
+                List<StockBasicPO> pos = batch.stream().map(this::mapToPO).collect(Collectors.toList());
 
                 boolean success = executeBatchUpdate(pos);
                 if (success) {
@@ -339,23 +323,53 @@ public class StockBatchRepository {
         private String error;
 
         // Getters and Setters
-        public int getTotalCount() { return totalCount; }
-        public void setTotalCount(int totalCount) { this.totalCount = totalCount; }
+        public int getTotalCount() {
+            return totalCount;
+        }
 
-        public int getValidCount() { return validCount; }
-        public void setValidCount(int validCount) { this.validCount = validCount; }
+        public void setTotalCount(int totalCount) {
+            this.totalCount = totalCount;
+        }
 
-        public int getInsertCount() { return insertCount; }
-        public void addInsertCount(int count) { this.insertCount += count; }
+        public int getValidCount() {
+            return validCount;
+        }
 
-        public int getUpdateCount() { return updateCount; }
-        public void addUpdateCount(int count) { this.updateCount += count; }
+        public void setValidCount(int validCount) {
+            this.validCount = validCount;
+        }
 
-        public int getFailedCount() { return failedCount; }
-        public void addFailedCount(int count) { this.failedCount += count; }
+        public int getInsertCount() {
+            return insertCount;
+        }
 
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
+        public void addInsertCount(int count) {
+            this.insertCount += count;
+        }
+
+        public int getUpdateCount() {
+            return updateCount;
+        }
+
+        public void addUpdateCount(int count) {
+            this.updateCount += count;
+        }
+
+        public int getFailedCount() {
+            return failedCount;
+        }
+
+        public void addFailedCount(int count) {
+            this.failedCount += count;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public void setError(String error) {
+            this.error = error;
+        }
 
         public boolean isSuccess() {
             return error == null && failedCount == 0;
@@ -363,7 +377,8 @@ public class StockBatchRepository {
 
         @Override
         public String toString() {
-            return String.format("BatchProcessingResult{total=%d, valid=%d, insert=%d, update=%d, failed=%d, success=%s}",
+            return String.format(
+                    "BatchProcessingResult{total=%d, valid=%d, insert=%d, update=%d, failed=%d, success=%s}",
                     totalCount, validCount, insertCount, updateCount, failedCount, isSuccess());
         }
     }

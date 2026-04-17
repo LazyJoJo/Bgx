@@ -1,20 +1,23 @@
 package com.stock.fund.infrastructure.repository;
 
-import com.stock.fund.domain.entity.Fund;
-import com.stock.fund.domain.repository.FundRepository;
-import com.stock.fund.infrastructure.entity.FundBasicPO;
-import com.stock.fund.infrastructure.mapper.FundBasicMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.stereotype.Repository;
+
+import com.stock.fund.domain.entity.Fund;
+import com.stock.fund.domain.repository.FundRepository;
+import com.stock.fund.infrastructure.entity.FundBasicPO;
+import com.stock.fund.infrastructure.mapper.FundBasicMapper;
+
+import lombok.RequiredArgsConstructor;
+
 @Repository
+@RequiredArgsConstructor
 public class FundRepositoryImpl implements FundRepository {
 
-    @Autowired
-    private FundBasicMapper fundBasicMapper;
+    private final FundBasicMapper fundBasicMapper;
 
     @Override
     public Optional<Fund> findByFundCode(String fundCode) {
@@ -36,7 +39,7 @@ public class FundRepositoryImpl implements FundRepository {
         FundBasicPO po = mapToPO(fund);
         if (fund.getId() == null) {
             fundBasicMapper.insert(po);
-            fund.setId(po.getId()); // 设置生成的ID
+            fund.setId(po.getId());
         } else {
             fundBasicMapper.updateById(po);
         }
@@ -60,7 +63,6 @@ public class FundRepositoryImpl implements FundRepository {
         return pos.stream().map(this::mapToDomainEntity).collect(Collectors.toList());
     }
 
-    // 私有方法：将PO转换为领域实体
     private Fund mapToDomainEntity(FundBasicPO po) {
         Fund fund = new Fund();
         fund.setId(po.getId());
@@ -80,7 +82,6 @@ public class FundRepositoryImpl implements FundRepository {
         return fund;
     }
 
-    // 私有方法：将领域实体转换为PO
     private FundBasicPO mapToPO(Fund fund) {
         FundBasicPO po = new FundBasicPO();
         po.setId(fund.getId());
