@@ -34,7 +34,7 @@ public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetA
         // 如果已存在则直接返回（幂等性保障）
         var existing = dataCollectionTargetRepository.findByCode(trimmedCode);
         if (existing.isPresent()) {
-            log.debug("采集目标 {} 已存在，直接返回", trimmedCode);
+            log.debug("Collection target {} already exists, returning directly", trimmedCode);
             return existing.get();
         }
 
@@ -51,10 +51,12 @@ public class DataCollectionTargetAppServiceImpl implements DataCollectionTargetA
             // 成功获取基金数据，确定为基金类型
             target.setType("FUND");
             target.setName(fundQuote.getFundName());
-            log.info("成功获取基金 {} 的名称: {}", trimmedCode, fundQuote.getFundName());
+            log.info("Successfully obtained fund {} name: {}", trimmedCode, fundQuote.getFundName());
         } else {
             // 未能获取基金数据，拒绝创建（无效代码）
-            log.error("无法创建采集目标 {}：无法获取有效的基金数据，该代码可能无效或为股票代码（此接口仅支持基金类型）", trimmedCode);
+            log.error(
+                    "Cannot create collection target {}: unable to obtain valid fund data, code may be invalid or a stock code (this interface only supports fund type)",
+                    trimmedCode);
             throw new InvalidFundCodeException(trimmedCode, "无法获取有效的基金数据，请确认是否为有效的基金代码（此接口仅支持基金类型）");
         }
 

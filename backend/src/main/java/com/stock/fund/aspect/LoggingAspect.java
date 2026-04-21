@@ -9,15 +9,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
 
 /**
- * 日志记录切面
- *统处理方法执行的日志记录，包括执行时间、参数、返回值等
+ * 日志记录切面 统处理方法执行的日志记录，包括执行时间、参数、返回值等
  */
 @Aspect
 @Component
 public class LoggingAspect {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(LoggingAspect.class);
-    
+
     /**
      * 环绕通知：记录定时任务方法的执行日志
      */
@@ -26,29 +25,29 @@ public class LoggingAspect {
         String className = joinPoint.getTarget().getClass().getSimpleName();
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();
-        
-        logger.info("开始执行定时任务: {}.{}，参数: {}", className, methodName, formatArgs(args));
-        
+
+        logger.info("Starting scheduled task: {}.{}, args: {}", className, methodName, formatArgs(args));
+
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        
+
         try {
             Object result = joinPoint.proceed();
             stopWatch.stop();
-            
+
             // 记录方法结束
-            logger.info("定时任务执行完成: {}.{}，耗时: {}ms", 
-                className, methodName, stopWatch.getTotalTimeMillis());
-            
+            logger.info("Scheduled task completed: {}.{}, elapsed: {}ms", className, methodName,
+                    stopWatch.getTotalTimeMillis());
+
             return result;
         } catch (Exception e) {
             stopWatch.stop();
-            logger.error("定时任务执行异常: {}.{}，耗时: {}ms，异常: {}", 
-                className, methodName, stopWatch.getTotalTimeMillis(), e.getMessage());
+            logger.error("Scheduled task exception: {}.{}, elapsed: {}ms, exception: {}", className, methodName,
+                    stopWatch.getTotalTimeMillis(), e.getMessage());
             throw e;
         }
     }
-    
+
     /**
      * 环绕通知：记录应用服务方法的执行日志
      */
@@ -57,30 +56,30 @@ public class LoggingAspect {
         String className = joinPoint.getTarget().getClass().getSimpleName();
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();
-        
-        //记方法开始
-        logger.info("开始执行应用服务方法: {}.{}，参数: {}", className, methodName, formatArgs(args));
-        
+
+        // 记方法开始
+        logger.info("Starting application service method: {}.{}, args: {}", className, methodName, formatArgs(args));
+
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        
+
         try {
             Object result = joinPoint.proceed();
             stopWatch.stop();
-            
+
             // 记录方法结束
-            logger.info("应用服务方法执行完成: {}.{}，耗时: {}ms，返回值: {}", 
-                className, methodName, stopWatch.getTotalTimeMillis(), formatResult(result));
-            
+            logger.info("Application service method completed: {}.{}, elapsed: {}ms, return: {}", className, methodName,
+                    stopWatch.getTotalTimeMillis(), formatResult(result));
+
             return result;
         } catch (Exception e) {
             stopWatch.stop();
-            logger.error("应用服务方法执行异常: {}.{}，耗时: {}ms，异常: {}", 
-                className, methodName, stopWatch.getTotalTimeMillis(), e.getMessage());
+            logger.error("Application service method exception: {}.{}, elapsed: {}ms, exception: {}", className,
+                    methodName, stopWatch.getTotalTimeMillis(), e.getMessage());
             throw e;
         }
     }
-    
+
     /**
      * 环绕通知：记录控制器方法的执行日志
      */
@@ -89,28 +88,28 @@ public class LoggingAspect {
         String className = joinPoint.getTarget().getClass().getSimpleName();
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();
-        
-        logger.info("开始处理请求: {}.{}，参数: {}", className, methodName, formatArgs(args));
-        
+
+        logger.info("Starting request: {}.{}, args: {}", className, methodName, formatArgs(args));
+
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        
+
         try {
             Object result = joinPoint.proceed();
             stopWatch.stop();
-            
-            logger.info("请求处理完成: {}.{}，耗时: {}ms", 
-                className, methodName, stopWatch.getTotalTimeMillis());
-            
+
+            logger.info("Request completed: {}.{}, elapsed: {}ms", className, methodName,
+                    stopWatch.getTotalTimeMillis());
+
             return result;
         } catch (Exception e) {
             stopWatch.stop();
-            logger.error("请求处理异常: {}.{}，耗时: {}ms，异常: {}", 
-                className, methodName, stopWatch.getTotalTimeMillis(), e.getMessage());
+            logger.error("Request exception: {}.{}, elapsed: {}ms, exception: {}", className, methodName,
+                    stopWatch.getTotalTimeMillis(), e.getMessage());
             throw e;
         }
     }
-    
+
     /**
      * 环绕通知：记录数据处理方法的执行日志
      */
@@ -119,46 +118,47 @@ public class LoggingAspect {
         String className = joinPoint.getTarget().getClass().getSimpleName();
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();
-        
-        logger.info("开始数据处理: {}.{}，数据量: {}", className, methodName, getDataSize(args));
-        
+
+        logger.info("Starting data processing: {}.{}, data size: {}", className, methodName, getDataSize(args));
+
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        
+
         try {
             Object result = joinPoint.proceed();
             stopWatch.stop();
-            
-            logger.info("数据处理完成: {}.{}，耗时: {}ms，处理结果: {}", 
-                className, methodName, stopWatch.getTotalTimeMillis(), formatResult(result));
-            
+
+            logger.info("Data processing completed: {}.{}, elapsed: {}ms, result: {}", className, methodName,
+                    stopWatch.getTotalTimeMillis(), formatResult(result));
+
             return result;
         } catch (Exception e) {
             stopWatch.stop();
-            logger.error("数据处理异常: {}.{}，耗时: {}ms，异常: {}", 
-                className, methodName, stopWatch.getTotalTimeMillis(), e.getMessage());
+            logger.error("Data processing exception: {}.{}, elapsed: {}ms, exception: {}", className, methodName,
+                    stopWatch.getTotalTimeMillis(), e.getMessage());
             throw e;
         }
     }
-    
+
     /**
-     *格化参数
+     * 格化参数
      */
     private String formatArgs(Object[] args) {
         if (args == null || args.length == 0) {
             return "无参数";
         }
-        
+
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < args.length; i++) {
-            if (i > 0) sb.append(", ");
+            if (i > 0)
+                sb.append(", ");
             sb.append("arg").append(i).append(": ").append(formatObject(args[i]));
         }
         return sb.toString();
     }
-    
+
     /**
-     *格化返回结果
+     * 格化返回结果
      */
     private String formatResult(Object result) {
         if (result == null) {
@@ -169,7 +169,7 @@ public class LoggingAspect {
         }
         return formatObject(result);
     }
-    
+
     /**
      * 获取数据大小
      */
@@ -177,7 +177,7 @@ public class LoggingAspect {
         if (args == null || args.length == 0) {
             return "0";
         }
-        
+
         for (Object arg : args) {
             if (arg instanceof java.util.Collection) {
                 return String.valueOf(((java.util.Collection<?>) arg).size());
@@ -188,9 +188,9 @@ public class LoggingAspect {
         }
         return "1";
     }
-    
+
     /**
-     *格化对象
+     * 格化对象
      */
     private String formatObject(Object obj) {
         if (obj == null) {

@@ -45,14 +45,14 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public CreateSubscriptionResponse createSubscription(CreateSubscriptionRequest request) {
-        logger.info("创建订阅: 用户ID={}, 标的代码={}", request.getUserId(), request.getSymbol());
+        logger.info("Creating subscription: userId={}, symbol={}", request.getUserId(), request.getSymbol());
 
         // 检查是否已存在相同标的的订阅
         Optional<UserSubscription> existing = userSubscriptionRepository
                 .findByUserIdAndSymbolAndSymbolType(request.getUserId(), request.getSymbol(), request.getSymbolType());
 
         if (existing.isPresent()) {
-            logger.info("该标的已存在订阅: ID={}", existing.get().getId());
+            logger.info("Subscription already exists for symbol: ID={}", existing.get().getId());
             return CreateSubscriptionResponse.existed(existing.get());
         }
 
@@ -75,7 +75,7 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
         }
 
         UserSubscription saved = userSubscriptionRepository.save(subscription);
-        logger.info("订阅创建成功: ID={}", saved.getId());
+        logger.info("Subscription created successfully: ID={}", saved.getId());
 
         return CreateSubscriptionResponse.created(saved);
     }
@@ -83,8 +83,8 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchCreateSubscriptionResponse batchCreateSubscription(BatchCreateSubscriptionRequest request) {
-        logger.info("批量创建订阅: 用户ID={}, 标的数量={}, 类型={}", request.getUserId(), request.getSymbols().size(),
-                request.getSymbolType());
+        logger.info("Batch creating subscriptions: userId={}, symbolCount={}, type={}", request.getUserId(),
+                request.getSymbols().size(), request.getSymbolType());
 
         // 1. 校验参数
         validateBatchRequest(request);
@@ -136,32 +136,32 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchDeleteSubscription(List<Long> ids) {
-        logger.info("批量删除订阅: IDs={}", ids);
+        logger.info("Batch deleting subscriptions: IDs={}", ids);
         for (Long id : ids) {
             userSubscriptionRepository.deleteById(id);
         }
-        logger.info("批量删除完成");
+        logger.info("Batch deletion completed");
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchActivateSubscription(List<Long> ids) {
-        logger.info("批量启用订阅: IDs={}", ids);
+        logger.info("Batch enabling subscriptions: IDs={}", ids);
         userSubscriptionRepository.batchUpdateActive(ids, true);
-        logger.info("批量启用完成");
+        logger.info("Batch enabling completed");
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchDeactivateSubscription(List<Long> ids) {
-        logger.info("批量停用订阅: IDs={}", ids);
+        logger.info("Batch disabling subscriptions: IDs={}", ids);
         userSubscriptionRepository.batchUpdateActive(ids, false);
-        logger.info("批量停用完成");
+        logger.info("Batch disabling completed");
     }
 
     @Override
     public UserSubscription updateSubscription(Long subscriptionId, UpdateSubscriptionRequest request) {
-        logger.info("更新订阅: ID={}", subscriptionId);
+        logger.info("Updating subscription: ID={}", subscriptionId);
 
         UserSubscription subscription = userSubscriptionRepository.findById(subscriptionId)
                 .orElseThrow(() -> new IllegalArgumentException("订阅不存在: ID=" + subscriptionId));
@@ -182,13 +182,14 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public void deleteSubscription(Long subscriptionId) {
-        logger.info("删除订阅: ID={}", subscriptionId);
+        logger.info("Deleting subscription: ID={}", subscriptionId);
         userSubscriptionRepository.deleteById(subscriptionId);
     }
 
     @Override
     public SubscriptionPageResponse<UserSubscription> querySubscriptions(SubscriptionQueryDTO query) {
-        logger.debug("分页查询订阅: userId={}, page={}, size={}", query.getUserId(), query.getPage(), query.getSize());
+        logger.debug("Paginated subscription query: userId={}, page={}, size={}", query.getUserId(), query.getPage(),
+                query.getSize());
 
         UserSubscriptionQuery queryObj = UserSubscriptionQuery.builder().userId(query.getUserId())
                 .symbol(query.getSymbol()).symbolType(query.getSymbolType()).status(query.getStatus())
@@ -202,20 +203,20 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public List<UserSubscription> getUserSubscriptions(Long userId) {
-        logger.debug("获取用户订阅列表: 用户ID={}", userId);
+        logger.debug("Getting user subscriptions: userId={}", userId);
         return userSubscriptionRepository.findByUserId(userId);
     }
 
     @Override
     public List<UserSubscription> getUserSubscriptions(Long userId, UserSubscriptionQuery query) {
-        logger.debug("获取用户订阅列表: 用户ID={}, symbol={}, symbolType={}, status={}", userId, query.getSymbol(),
-                query.getSymbolType(), query.getStatus());
+        logger.debug("Getting user subscriptions: userId={}, symbol={}, symbolType={}, status={}", userId,
+                query.getSymbol(), query.getSymbolType(), query.getStatus());
         return userSubscriptionRepository.findByUserIdWithPage(query);
     }
 
     @Override
     public List<UserSubscription> getUserActiveSubscriptions(Long userId) {
-        logger.debug("获取用户激活的订阅: 用户ID={}", userId);
+        logger.debug("Getting user active subscriptions: userId={}", userId);
         return userSubscriptionRepository.findByUserIdAndActive(userId, true);
     }
 
@@ -226,7 +227,7 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public void activateSubscription(Long subscriptionId) {
-        logger.info("启用订阅: ID={}", subscriptionId);
+        logger.info("Enabling subscription: ID={}", subscriptionId);
         userSubscriptionRepository.findById(subscriptionId).ifPresent(subscription -> {
             subscription.activate();
             userSubscriptionRepository.save(subscription);
@@ -235,7 +236,7 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public void deactivateSubscription(Long subscriptionId) {
-        logger.info("停用订阅: ID={}", subscriptionId);
+        logger.info("Disabling subscription: ID={}", subscriptionId);
         userSubscriptionRepository.findById(subscriptionId).ifPresent(subscription -> {
             subscription.deactivate();
             userSubscriptionRepository.save(subscription);
@@ -244,8 +245,8 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     @Override
     public CheckDuplicatesResponse checkDuplicates(CheckDuplicatesRequest request) {
-        logger.info("检测重复订阅: 用户ID={}, 标的数量={}, 类型={}", request.getUserId(), request.getSymbols().size(),
-                request.getSymbolType());
+        logger.info("Checking duplicate subscriptions: userId={}, symbolCount={}, type={}", request.getUserId(),
+                request.getSymbols().size(), request.getSymbolType());
 
         // 批量查询已存在的订阅
         List<UserSubscription> existingSubscriptions = userSubscriptionRepository.findByUserIdAndSymbolsAndSymbolType(

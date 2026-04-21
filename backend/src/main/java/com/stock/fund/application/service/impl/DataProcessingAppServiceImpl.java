@@ -1,41 +1,42 @@
 package com.stock.fund.application.service.impl;
 
-import com.stock.fund.application.service.DataProcessingAppService;
-import com.stock.fund.domain.entity.Stock;
-import com.stock.fund.domain.entity.Fund;
-import com.stock.fund.domain.entity.StockQuote;
-import com.stock.fund.domain.entity.FundQuote;
-import com.stock.fund.domain.repository.StockRepository;
-import com.stock.fund.domain.repository.FundRepository;
-import com.stock.fund.domain.repository.StockQuoteRepository;
-import com.stock.fund.domain.repository.FundQuoteRepository;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import com.stock.fund.application.service.DataProcessingAppService;
+import com.stock.fund.domain.entity.Fund;
+import com.stock.fund.domain.entity.FundQuote;
+import com.stock.fund.domain.entity.Stock;
+import com.stock.fund.domain.entity.StockQuote;
+import com.stock.fund.domain.repository.FundQuoteRepository;
+import com.stock.fund.domain.repository.FundRepository;
+import com.stock.fund.domain.repository.StockQuoteRepository;
+import com.stock.fund.domain.repository.StockRepository;
 
 @Service
 public class DataProcessingAppServiceImpl implements DataProcessingAppService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(DataProcessingAppServiceImpl.class);
 
     @Autowired
     private StockRepository stockRepository;
-    
+
     @Autowired
     private FundRepository fundRepository;
-    
+
     @Autowired
     private StockQuoteRepository stockQuoteRepository;
-    
+
     @Autowired
     private FundQuoteRepository fundQuoteRepository;
 
     @Override
     public void processStockBasics(List<Stock> stockBasics) {
-        logger.info("开始处理股票基本信息，共 {} 条数据", stockBasics.size());
+        logger.info("Starting to process stock basics, total {} records", stockBasics.size());
 
         for (Stock stock : stockBasics) {
             // 检查股票是否已存在
@@ -53,41 +54,41 @@ public class DataProcessingAppServiceImpl implements DataProcessingAppService {
                 existingStock.setPb(stock.getPb());
                 existingStock.setUpdatedAt(stock.getUpdatedAt());
                 stockRepository.save(existingStock);
-                logger.debug("更新股票信息: {}", stock.getSymbol());
+                logger.debug("Updating stock info: {}", stock.getSymbol());
             } else {
                 // 创建新股票信息
                 stockRepository.save(stock);
-                logger.debug("新增股票信息: {}", stock.getSymbol());
+                logger.debug("Inserting stock info: {}", stock.getSymbol());
             }
         }
 
-        logger.info("股票基本信息处理完成");
+        logger.info("Stock basics processing completed");
     }
 
     @Override
     public void processStockQuotes(List<StockQuote> stockQuotes) {
-        logger.info("开始处理股票行情数据，共 {} 条数据", stockQuotes.size());
+        logger.info("Starting to process stock quotes, total {} records", stockQuotes.size());
 
         for (StockQuote stockQuote : stockQuotes) {
             // 保存行情数据
             stockQuoteRepository.save(stockQuote);
-            logger.debug("保存股票行情: {} - {}", stockQuote.getStockId(), stockQuote.getClose());
+            logger.debug("Saving stock quote: {} - {}", stockQuote.getStockId(), stockQuote.getClose());
         }
 
-        logger.info("股票行情数据处理完成");
+        logger.info("Stock quotes processing completed");
     }
 
     @Override
     public void processStockQuote(StockQuote stockQuote) {
-        logger.info("处理单个股票行情: {}", stockQuote.getStockId());
+        logger.info("Processing single stock quote: {}", stockQuote.getStockId());
         // 保存行情数据
         stockQuoteRepository.save(stockQuote);
-        logger.debug("保存股票行情: {} - {}", stockQuote.getStockId(), stockQuote.getClose());
+        logger.debug("Saving stock quote: {} - {}", stockQuote.getStockId(), stockQuote.getClose());
     }
 
     @Override
     public void processFundBasics(List<Fund> fundBasics) {
-        logger.info("开始处理基金基本信息，共 {} 条数据", fundBasics.size());
+        logger.info("Starting to process fund basics, total {} records", fundBasics.size());
 
         for (Fund fund : fundBasics) {
             // 检查基金是否已存在
@@ -107,35 +108,35 @@ public class DataProcessingAppServiceImpl implements DataProcessingAppService {
                 existingFund.setYearGrowth(fund.getYearGrowth());
                 existingFund.setUpdatedAt(fund.getUpdatedAt());
                 fundRepository.save(existingFund);
-                logger.debug("更新基金信息: {}", fund.getFundCode());
+                logger.debug("Updating fund info: {}", fund.getFundCode());
             } else {
                 // 创建新基金信息
                 fundRepository.save(fund);
-                logger.debug("新增基金信息: {}", fund.getFundCode());
+                logger.debug("Inserting fund info: {}", fund.getFundCode());
             }
         }
 
-        logger.info("基金基本信息处理完成");
+        logger.info("Fund basics processing completed");
     }
 
     @Override
     public void processFundQuotes(List<FundQuote> fundQuotes) {
-        logger.info("开始处理基金净值数据，共 {} 条数据", fundQuotes.size());
+        logger.info("Starting to process fund NAV data, total {} records", fundQuotes.size());
 
         for (FundQuote fundQuote : fundQuotes) {
             // 保存净值数据
             fundQuoteRepository.save(fundQuote);
-            logger.debug("保存基金净值: {} - {}", fundQuote.getFundCode(), fundQuote.getNav());
+            logger.debug("Saving fund NAV: {} - {}", fundQuote.getFundCode(), fundQuote.getNav());
         }
 
-        logger.info("基金净值数据处理完成");
+        logger.info("Fund NAV data processing completed");
     }
 
     @Override
     public void processFundQuote(FundQuote fundQuote) {
-        logger.info("处理单个基金净值: {}", fundQuote.getFundCode());
+        logger.info("Processing single fund NAV: {}", fundQuote.getFundCode());
         // 保存净值数据
         fundQuoteRepository.save(fundQuote);
-        logger.debug("保存基金净值: {} - {}", fundQuote.getFundCode(), fundQuote.getNav());
+        logger.debug("Saving fund NAV: {} - {}", fundQuote.getFundCode(), fundQuote.getNav());
     }
 }

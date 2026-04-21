@@ -43,12 +43,12 @@ public class StockBatchRepository {
         BatchProcessingResult result = new BatchProcessingResult();
 
         if (CollectionUtils.isEmpty(stockBasics)) {
-            logger.info("股票基本信息列表为空，无需处理");
+            logger.info("Stock basics list is empty, skipping");
             return result;
         }
 
         try {
-            logger.info("开始批量处理股票基本信息，共 {} 条数据", stockBasics.size());
+            logger.info("Starting batch processing of stock basics, total {} records", stockBasics.size());
 
             // 1. 数据预处理和去重
             List<Stock> validStocks = preprocessStocks(stockBasics);
@@ -56,7 +56,7 @@ public class StockBatchRepository {
             result.setValidCount(validStocks.size());
 
             if (validStocks.isEmpty()) {
-                logger.warn("预处理后无有效数据");
+                logger.warn("No valid data after preprocessing");
                 return result;
             }
 
@@ -90,11 +90,11 @@ public class StockBatchRepository {
                 processBatchUpdate(toUpdate, result);
             }
 
-            logger.info("批量处理完成 - 新增: {}, 更新: {}, 失败: {}", result.getInsertCount(), result.getUpdateCount(),
-                    result.getFailedCount());
+            logger.info("Batch processing completed - Insert: {}, Update: {}, Failed: {}", result.getInsertCount(),
+                    result.getUpdateCount(), result.getFailedCount());
 
         } catch (Exception e) {
-            logger.error("批量处理股票基本信息失败", e);
+            logger.error("Batch processing stock basics failed", e);
             result.setError(e.getMessage());
             throw e; // 重新抛出异常以触发事务回滚
         }
@@ -133,11 +133,12 @@ public class StockBatchRepository {
                     result.addFailedCount(pos.size());
                 }
 
-                logger.debug("批量插入股票行情数据: {}/{} 条", Math.min(endIndex, stockQuotes.size()), stockQuotes.size());
+                logger.debug("Batch inserting stock quotes: {}/{} records", Math.min(endIndex, stockQuotes.size()),
+                        stockQuotes.size());
             }
 
         } catch (Exception e) {
-            logger.error("批量处理股票行情数据失败", e);
+            logger.error("Batch processing stock quotes failed", e);
             result.setError(e.getMessage());
             throw e;
         }
@@ -156,7 +157,7 @@ public class StockBatchRepository {
             return;
         }
 
-        logger.info("开始分批处理大数据集，总数据量: {}, 批次大小: {}", stocks.size(), batchSize);
+        logger.info("Starting batch processing of large dataset, total: {}, batch size: {}", stocks.size(), batchSize);
 
         for (int i = 0; i < stocks.size(); i += batchSize) {
             int endIndex = Math.min(i + batchSize, stocks.size());
@@ -164,9 +165,9 @@ public class StockBatchRepository {
 
             try {
                 processStockBasicsBatch(batch);
-                logger.info("批次处理完成: {}/{}", endIndex, stocks.size());
+                logger.info("Batch processing completed: {}/{}", endIndex, stocks.size());
             } catch (Exception e) {
-                logger.error("批次处理失败: {}/{}", endIndex, stocks.size(), e);
+                logger.error("Batch processing failed: {}/{}", endIndex, stocks.size(), e);
                 // 可以选择继续处理下一个批次或中断
             }
         }
@@ -213,15 +214,15 @@ public class StockBatchRepository {
                 boolean success = executeBatchInsert(pos);
                 if (success) {
                     result.addInsertCount(pos.size());
-                    logger.debug("批量插入成功: {} 条", pos.size());
+                    logger.debug("Batch insert successful: {} records", pos.size());
                 } else {
                     result.addFailedCount(pos.size());
                 }
             }
-            logger.info("批量新增股票记录: {} 条", result.getInsertCount());
+            logger.info("Batch insert stock records: {} records", result.getInsertCount());
 
         } catch (Exception e) {
-            logger.error("批量插入失败，条数: {}", toInsert.size(), e);
+            logger.error("Batch insert failed, count: {}", toInsert.size(), e);
             result.addFailedCount(toInsert.size());
             throw e;
         }
@@ -239,7 +240,7 @@ public class StockBatchRepository {
             boolean result = stockBasicMapper.insertBatchSomeColumn(pos) > 0;
             return result;
         } catch (Exception e) {
-            logger.error("批量插入执行失败: {}", e.getMessage());
+            logger.error("Batch insert execution failed: {}", e.getMessage());
             return false;
         }
     }
@@ -263,10 +264,10 @@ public class StockBatchRepository {
                     result.addFailedCount(pos.size());
                 }
             }
-            logger.info("批量更新股票记录: {} 条", result.getUpdateCount());
+            logger.info("Batch update stock records: {} records", result.getUpdateCount());
 
         } catch (Exception e) {
-            logger.error("批量更新失败，条数: {}", toUpdate.size(), e);
+            logger.error("Batch update failed, count: {}", toUpdate.size(), e);
             result.addFailedCount(toUpdate.size());
             throw e;
         }
@@ -286,7 +287,7 @@ public class StockBatchRepository {
             }
             return true;
         } catch (Exception e) {
-            logger.error("批量更新执行失败: {}", e.getMessage());
+            logger.error("Batch update execution failed: {}", e.getMessage());
             return false;
         }
     }

@@ -9,6 +9,7 @@ import {
   StockOutlined,
   UserOutlined
 } from '@ant-design/icons'
+import { useRiskAlertSSE } from '@hooks/useRiskAlertSSE'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
 import { fetchRiskAlertUnreadCount } from '@store/slices/riskAlertsSlice'
 import { Avatar, Badge, Button, Dropdown, Layout, Menu } from 'antd'
@@ -30,7 +31,19 @@ const Header = ({ collapsed, onCollapse }: HeaderProps) => {
   // 导航栏未读计数 = 风险提醒未读
   const totalAlertCount = riskAlertUnreadCount
 
-  // 组件挂载时获取未读计数
+  // 获取 userId（从 localStorage 解析，带验证）
+  const storedUserId = localStorage.getItem('userId')
+  const parsedUserId = storedUserId ? Number(storedUserId) : NaN
+  const userId = Number.isInteger(parsedUserId) && parsedUserId > 0 ? parsedUserId : 1
+
+  // 启用 SSE 实时推送（isConnected 可用于显示连接状态指示器）
+  useRiskAlertSSE({
+    enabled: true,
+    userId,
+    autoConnect: true
+  })
+
+  // 组件挂载时获取未读计数（初始化）
   useEffect(() => {
     dispatch(fetchRiskAlertUnreadCount())
   }, [dispatch])

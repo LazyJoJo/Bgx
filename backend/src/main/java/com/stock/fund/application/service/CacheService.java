@@ -1,15 +1,16 @@
 package com.stock.fund.application.service;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
+import com.github.benmanes.caffeine.cache.Cache;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * 本地缓存服务
- * 使用 Caffeine 实现高性能本地缓存
+ * 本地缓存服务 使用 Caffeine 实现高性能本地缓存
  */
 @Service
 @Slf4j
@@ -32,17 +33,16 @@ public class CacheService {
      */
     public <T> void setValue(String key, T value) {
         generalCache.put(key, value);
-        log.debug("已存储缓存: key={}", key);
+        log.debug("Cache stored: key={}", key);
     }
 
     /**
-     * 存储带过期时间的键值对
-     * 注意：Caffeine 不支持精确过期时间，这里设置的是近似过期
+     * 存储带过期时间的键值对 注意：Caffeine 不支持精确过期时间，这里设置的是近似过期
      */
     public <T> void setValueWithExpire(String key, T value, long time, TimeUnit timeUnit) {
         // Caffeine 通过调度线程异步清理过期数据，过期时间是近似值
         generalCache.put(key, value);
-        log.debug("已存储带过期时间的缓存: key={}, expire={}{}", key, time, timeUnit);
+        log.debug("Cache stored with TTL: key={}, expire={}{}", key, time, timeUnit);
     }
 
     /**
@@ -51,7 +51,7 @@ public class CacheService {
     @SuppressWarnings("unchecked")
     public <T> T getValue(String key) {
         T value = (T) generalCache.getIfPresent(key);
-        log.debug("获取缓存: key={}, exists={}", key, value != null);
+        log.debug("Cache retrieved: key={}, exists={}", key, value != null);
         return value;
     }
 
@@ -67,7 +67,7 @@ public class CacheService {
      */
     public void deleteValue(String key) {
         generalCache.invalidate(key);
-        log.debug("删除缓存: key={}", key);
+        log.debug("Cache deleted: key={}", key);
     }
 
     /**
@@ -75,7 +75,7 @@ public class CacheService {
      */
     public void deleteValues(Iterable<String> keys) {
         keys.forEach(generalCache::invalidate);
-        log.debug("批量删除缓存完成");
+        log.debug("Batch cache deletion completed");
     }
 
     /**
@@ -90,7 +90,7 @@ public class CacheService {
      */
     public void clearAll() {
         generalCache.invalidateAll();
-        log.info("已清空所有通用缓存");
+        log.info("All general cache cleared");
     }
 
     /**
@@ -98,7 +98,7 @@ public class CacheService {
      */
     public void clearStockCache() {
         stockCache.invalidateAll();
-        log.info("已清空股票缓存");
+        log.info("Stock cache cleared");
     }
 
     /**
@@ -106,7 +106,7 @@ public class CacheService {
      */
     public void clearFundCache() {
         fundCache.invalidateAll();
-        log.info("已清空基金缓存");
+        log.info("Fund cache cleared");
     }
 
     /**
@@ -114,7 +114,7 @@ public class CacheService {
      */
     public void clearApiCache() {
         apiCache.invalidateAll();
-        log.info("已清空 API 缓存");
+        log.info("API cache cleared");
     }
 
     /**
@@ -122,7 +122,7 @@ public class CacheService {
      */
     public <T> void setStock(String symbol, T data) {
         stockCache.put(symbol, data);
-        log.debug("已存储股票缓存: symbol={}", symbol);
+        log.debug("Stock cache stored: symbol={}", symbol);
     }
 
     /**
@@ -138,7 +138,7 @@ public class CacheService {
      */
     public <T> void setFund(String fundCode, T data) {
         fundCache.put(fundCode, data);
-        log.debug("已存储基金缓存: fundCode={}", fundCode);
+        log.debug("Fund cache stored: fundCode={}", fundCode);
     }
 
     /**
@@ -154,7 +154,7 @@ public class CacheService {
      */
     public <T> void setApiResponse(String key, T response) {
         apiCache.put(key, response);
-        log.debug("已存储 API 缓存: key={}", key);
+        log.debug("API cache stored: key={}", key);
     }
 
     /**

@@ -32,124 +32,132 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class RiskAlertQueryService {
 
-    private final RiskAlertRepository riskAlertRepository;
+        private final RiskAlertRepository riskAlertRepository;
 
-    /**
-     * 获取今日风险提醒摘要（按日期和标的分组）
-     */
-    public List<RiskAlertSummaryDTO> getTodayRiskAlertSummary(Long userId) {
-        LocalDate today = LocalDate.now();
-        return getRiskAlertsByDateRangeSummary(userId, today, today);
-    }
+        /**
+         * 获取今日风险提醒摘要（按日期和标的分组）
+         */
+        public List<RiskAlertSummaryDTO> getTodayRiskAlertSummary(Long userId) {
+                LocalDate today = LocalDate.now();
+                return getRiskAlertsByDateRangeSummary(userId, today, today);
+        }
 
-    /**
-     * 获取日期范围内的风险提醒摘要（按日期和标的分组） 这是 getRiskAlertsByDateRange 的查询端实现
-     */
-    public List<RiskAlertSummaryDTO> getRiskAlertsByDateRangeSummary(Long userId, LocalDate startDate,
-            LocalDate endDate) {
+        /**
+         * 获取日期范围内的风险提醒摘要（按日期和标的分组） 这是 getRiskAlertsByDateRange 的查询端实现
+         */
+        public List<RiskAlertSummaryDTO> getRiskAlertsByDateRangeSummary(Long userId, LocalDate startDate,
+                        LocalDate endDate) {
 
-        List<RiskAlert> alerts = riskAlertRepository.findByUserIdAndDateRange(userId, startDate, endDate);
+                List<RiskAlert> alerts = riskAlertRepository.findByUserIdAndDateRange(userId, startDate, endDate);
 
-        // 按日期分组
-        Map<LocalDate, List<RiskAlert>> byDate = alerts.stream()
-                .collect(Collectors.groupingBy(RiskAlert::getAlertDate));
+                // 按日期分组
+                Map<LocalDate, List<RiskAlert>> byDate = alerts.stream()
+                                .collect(Collectors.groupingBy(RiskAlert::getAlertDate));
 
-        List<RiskAlertSummaryDTO> result = new ArrayList<>();
+                List<RiskAlertSummaryDTO> result = new ArrayList<>();
 
-        for (Map.Entry<LocalDate, List<RiskAlert>> entry : byDate.entrySet()) {
-            LocalDate date = entry.getKey();
-            List<RiskAlert> dateAlerts = entry.getValue();
+                for (Map.Entry<LocalDate, List<RiskAlert>> entry : byDate.entrySet()) {
+                        LocalDate date = entry.getKey();
+                        List<RiskAlert> dateAlerts = entry.getValue();
 
-            // 按 symbol 分组，每组取时间靠后的那条
-            Map<String, List<RiskAlert>> bySymbol = dateAlerts.stream()
-                    .collect(Collectors.groupingBy(RiskAlert::getSymbol));
+                        // 按 symbol 分组，每组取时间靠后的那条
+                        Map<String, List<RiskAlert>> bySymbol = dateAlerts.stream()
+                                        .collect(Collectors.groupingBy(RiskAlert::getSymbol));
 
-            List<RiskAlertSummaryDTO.RiskAlertItemDTO> items = new ArrayList<>();
-            int unreadCount = 0;
+                        List<RiskAlertSummaryDTO.RiskAlertItemDTO> items = new ArrayList<>();
+                        int unreadCount = 0;
 
-            for (Map.Entry<String, List<RiskAlert>> symbolEntry : bySymbol.entrySet()) {
-                List<RiskAlert> symbolAlerts = symbolEntry.getValue();
-                // 按时间倒序，取第一条（时间最靠后的）
-                symbolAlerts.sort(Comparator.comparing(RiskAlert::getTimePoint).reversed());
-                RiskAlert latest = symbolAlerts.get(0);
+                        for (Map.Entry<String, List<RiskAlert>> symbolEntry : bySymbol.entrySet()) {
+                                List<RiskAlert> symbolAlerts = symbolEntry.getValue();
+                                // 按时间倒序，取第一条（时间最靠后的）
+                                symbolAlerts.sort(Comparator.comparing(RiskAlert::getTimePoint).reversed());
+                                RiskAlert latest = symbolAlerts.get(0);
 
-                RiskAlertSummaryDTO.RiskAlertItemDTO item = RiskAlertSummaryDTO.RiskAlertItemDTO.builder()
-                        .id(latest.getId()).symbol(latest.getSymbol()).symbolType(latest.getSymbolType())
-                        .symbolName(latest.getSymbolName()).timePoint(latest.getTimePoint())
-                        .hasRisk(latest.getHasRisk()).changePercent(latest.getChangePercent())
-                        .currentPrice(latest.getCurrentPrice()).yesterdayClose(latest.getYesterdayClose())
-                        .isRead(latest.getIsRead())
-                        .triggeredAt(latest.getTriggeredAt() != null ? latest.getTriggeredAt().toString() : null)
-                        .build();
-                items.add(item);
+                                RiskAlertSummaryDTO.RiskAlertItemDTO item = RiskAlertSummaryDTO.RiskAlertItemDTO
+                                                .builder().id(latest.getId()).symbol(latest.getSymbol())
+                                                .symbolType(latest.getSymbolType()).symbolName(latest.getSymbolName())
+                                                .timePoint(latest.getTimePoint()).hasRisk(latest.getHasRisk())
+                                                .changePercent(latest.getChangePercent())
+                                                .currentPrice(latest.getCurrentPrice())
+                                                .yesterdayClose(latest.getYesterdayClose()).isRead(latest.getIsRead())
+                                                .triggeredAt(latest.getTriggeredAt() != null
+                                                                ? latest.getTriggeredAt().toString()
+                                                                : null)
+                                                .build();
+                                items.add(item);
 
-                if (!Boolean.TRUE.equals(latest.getIsRead())) {
-                    unreadCount++;
+                                if (!Boolean.TRUE.equals(latest.getIsRead())) {
+                                        unreadCount++;
+                                }
+                        }
+
+                        RiskAlertSummaryDTO summary = RiskAlertSummaryDTO.builder().alertDate(date)
+                                        .totalCount(items.size()).unreadCount(unreadCount).items(items).build();
+                        result.add(summary);
                 }
-            }
 
-            RiskAlertSummaryDTO summary = RiskAlertSummaryDTO.builder().alertDate(date).totalCount(items.size())
-                    .unreadCount(unreadCount).items(items).build();
-            result.add(summary);
+                // 按日期倒序排列
+                result.sort(Comparator.comparing(RiskAlertSummaryDTO::getAlertDate).reversed());
+
+                return result;
         }
 
-        // 按日期倒序排列
-        result.sort(Comparator.comparing(RiskAlertSummaryDTO::getAlertDate).reversed());
+        /**
+         * 获取合并后的风险提醒列表（按标的+日期分组） 这是 getMergedRiskAlerts 的查询端实现
+         */
+        public List<RiskAlertMergeDTO> getMergedRiskAlerts(Long userId, Long cursor, int limit) {
+                LocalDate cursorDate = null;
+                if (cursor != null) {
+                        LocalDateTime cursorTime = LocalDateTime.ofEpochSecond(cursor / 1000, 0, ZoneOffset.ofHours(8));
+                        cursorDate = cursorTime.toLocalDate();
+                }
 
-        return result;
-    }
+                List<RiskAlert> alerts = riskAlertRepository.findByUserId(userId, cursorDate, limit);
 
-    /**
-     * 获取合并后的风险提醒列表（按标的+日期分组） 这是 getMergedRiskAlerts 的查询端实现
-     */
-    public List<RiskAlertMergeDTO> getMergedRiskAlerts(Long userId, Long cursor, int limit) {
-        LocalDateTime cursorTime = cursor != null ? LocalDateTime.ofEpochSecond(cursor / 1000, 0, ZoneOffset.ofHours(8))
-                : LocalDateTime.now();
+                // 按 symbol + date 分组
+                Map<String, List<RiskAlert>> grouped = alerts.stream().collect(
+                                Collectors.groupingBy(alert -> alert.getSymbol() + "_" + alert.getAlertDate()));
 
-        List<RiskAlert> alerts = riskAlertRepository.findByUserId(userId, cursorTime.toLocalDate(), limit);
+                List<RiskAlertMergeDTO> result = new ArrayList<>();
 
-        // 按 symbol + date 分组
-        Map<String, List<RiskAlert>> grouped = alerts.stream()
-                .collect(Collectors.groupingBy(alert -> alert.getSymbol() + "_" + alert.getAlertDate()));
+                for (Map.Entry<String, List<RiskAlert>> entry : grouped.entrySet()) {
+                        List<RiskAlert> groupAlerts = entry.getValue();
 
-        List<RiskAlertMergeDTO> result = new ArrayList<>();
+                        // 按触发时间倒序排列（处理null情况）
+                        groupAlerts.sort(Comparator.comparing(RiskAlert::getTriggeredAt,
+                                        Comparator.nullsLast(Comparator.reverseOrder())));
 
-        for (Map.Entry<String, List<RiskAlert>> entry : grouped.entrySet()) {
-            List<RiskAlert> groupAlerts = entry.getValue();
+                        RiskAlert latest = groupAlerts.get(0);
+                        // 按时间点倒序（14:30 > 11:30），处理null情况
+                        groupAlerts.sort(Comparator.comparing(RiskAlert::getTimePoint,
+                                        Comparator.nullsLast(Comparator.reverseOrder())));
 
-            // 按触发时间倒序排列（处理null情况）
-            groupAlerts.sort(
-                    Comparator.comparing(RiskAlert::getTriggeredAt, Comparator.nullsLast(Comparator.reverseOrder())));
+                        // 计算最大涨跌幅
+                        BigDecimal maxChangePercent = groupAlerts.stream().map(RiskAlert::getChangePercent)
+                                        .filter(Objects::nonNull).max(BigDecimal::compareTo)
+                                        .orElse(latest.getChangePercent());
 
-            RiskAlert latest = groupAlerts.get(0);
-            // 按时间点倒序（14:30 > 11:30），处理null情况
-            groupAlerts.sort(
-                    Comparator.comparing(RiskAlert::getTimePoint, Comparator.nullsLast(Comparator.reverseOrder())));
+                        // 构建明细列表
+                        List<RiskAlertMergeDTO.RiskAlertDetailDTO> details = groupAlerts.stream()
+                                        .map(alert -> new RiskAlertMergeDTO.RiskAlertDetailDTO(alert.getId(),
+                                                        alert.getChangePercent(), alert.getCurrentPrice(),
+                                                        alert.getTriggeredAt(), null))
+                                        .collect(Collectors.toList());
 
-            // 计算最大涨跌幅
-            BigDecimal maxChangePercent = groupAlerts.stream().map(RiskAlert::getChangePercent).filter(Objects::nonNull)
-                    .max(BigDecimal::compareTo).orElse(latest.getChangePercent());
+                        // 如果alertDate为null，使用triggeredAt的日期作为fallback
+                        java.time.LocalDate alertDate = latest.getAlertDate() != null ? latest.getAlertDate()
+                                        : latest.getTriggeredAt().toLocalDate();
 
-            // 构建明细列表
-            List<RiskAlertMergeDTO.RiskAlertDetailDTO> details = groupAlerts
-                    .stream().map(alert -> new RiskAlertMergeDTO.RiskAlertDetailDTO(alert.getId(),
-                            alert.getChangePercent(), alert.getCurrentPrice(), alert.getTriggeredAt(), null))
-                    .collect(Collectors.toList());
+                        result.add(new RiskAlertMergeDTO(latest.getId(), latest.getSymbol(), latest.getSymbolType(),
+                                        latest.getSymbolName(), alertDate, groupAlerts.size(), maxChangePercent,
+                                        latest.getChangePercent(), latest.getCurrentPrice(), latest.getYesterdayClose(),
+                                        latest.getIsRead(), latest.getTriggeredAt(), details));
+                }
 
-            // 如果alertDate为null，使用triggeredAt的日期作为fallback
-            java.time.LocalDate alertDate = latest.getAlertDate() != null ? latest.getAlertDate()
-                    : latest.getTriggeredAt().toLocalDate();
+                // 按最新触发时间倒序（处理null情况）
+                result.sort(Comparator.comparing(RiskAlertMergeDTO::latestTriggeredAt,
+                                Comparator.nullsLast(Comparator.reverseOrder())));
 
-            result.add(new RiskAlertMergeDTO(latest.getId(), latest.getSymbol(), latest.getSymbolType(),
-                    latest.getSymbolName(), alertDate, groupAlerts.size(), maxChangePercent, latest.getChangePercent(),
-                    latest.getCurrentPrice(), latest.getYesterdayClose(), latest.getIsRead(), latest.getTriggeredAt(),
-                    details));
+                return result;
         }
-
-        // 按最新触发时间倒序（处理null情况）
-        result.sort(Comparator.comparing(RiskAlertMergeDTO::latestTriggeredAt,
-                Comparator.nullsLast(Comparator.reverseOrder())));
-
-        return result;
-    }
 }

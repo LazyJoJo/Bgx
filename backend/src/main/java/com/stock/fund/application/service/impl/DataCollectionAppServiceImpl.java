@@ -53,7 +53,8 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
     public StockQuote collectStockQuote(String symbol) {
         // 模拟从数据源获取股票实时行情
         // 实际实现中这里会调用外部API如Tushare等
-        Stock stock = stockRepository.findBySymbol(symbol).orElseThrow(() -> new RuntimeException("股票不存在: " + symbol));
+        Stock stock = stockRepository.findBySymbol(symbol)
+                .orElseThrow(() -> new RuntimeException("Stock not found: " + symbol));
 
         StockQuote quote = new StockQuote();
         quote.setStockId(stock.getId());
@@ -89,7 +90,7 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         // 从外部数据源获取基金实时净值
         // 实际实现中这里会调用外部API
         Fund fund = fundRepository.findByFundCode(fundCode)
-                .orElseThrow(() -> new RuntimeException("基金不存在: " + fundCode));
+                .orElseThrow(() -> new RuntimeException("Fund not found: " + fundCode));
 
         FundQuote quote = new FundQuote();
         quote.setFundCode(fund.getFundCode());
@@ -118,15 +119,15 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
         List<DataCollectionTarget> fundTargets = dataCollectionTargetRepository.findByTypeAndActive("FUND", true);
 
         if (fundTargets.isEmpty()) {
-            log.info("没有找到活跃的基金采集目标");
+            log.info("No active fund collection targets found");
             return;
         }
 
-        log.info("找到 {} 个活跃基金采集目标", fundTargets.size());
+        log.info("Found {} active fund collection targets", fundTargets.size());
 
         for (DataCollectionTarget target : fundTargets) {
             try {
-                log.info("正在处理基金目标: {} - {}", target.getCode(), target.getName());
+                log.info("Processing fund target: {} - {}", target.getCode(), target.getName());
 
                 // 获取基金实时数据
                 FundQuote newFundQuote = fetchFundRealTimeData(target.getCode());
@@ -147,26 +148,28 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
                         existingQuote.setChangePercent(newFundQuote.getChangePercent());
 
                         fundQuoteRepository.save(existingQuote);
-                        log.info("更新基金数据: {} 日期: {} 时间: {} 净值: {} 涨跌幅: {}% 涨跌额: {}", target.getCode(),
-                                existingQuote.getQuoteDate(), existingQuote.getQuoteTimeOnly(), existingQuote.getNav(),
-                                existingQuote.getChangePercent(), existingQuote.getChangeAmount());
+                        log.info("Updating fund data: {} date: {} time: {} NAV: {} change: {}% changeAmt: {}",
+                                target.getCode(), existingQuote.getQuoteDate(), existingQuote.getQuoteTimeOnly(),
+                                existingQuote.getNav(), existingQuote.getChangePercent(),
+                                existingQuote.getChangeAmount());
                     } else {
                         // 如果不存在同一天的记录，保存新记录
                         fundQuoteRepository.save(newFundQuote);
-                        log.info("新增基金数据: {} 日期: {} 时间: {} 净值: {} 涨跌幅: {}% 涨跌额: {}", target.getCode(),
-                                newFundQuote.getQuoteDate(), newFundQuote.getQuoteTimeOnly(), newFundQuote.getNav(),
-                                newFundQuote.getChangePercent(), newFundQuote.getChangeAmount());
+                        log.info("New fund data: {} date: {} time: {} NAV: {} change: {}% changeAmt: {}",
+                                target.getCode(), newFundQuote.getQuoteDate(), newFundQuote.getQuoteTimeOnly(),
+                                newFundQuote.getNav(), newFundQuote.getChangePercent(), newFundQuote.getChangeAmount());
                     }
                 } else {
-                    log.warn("未能获取到基金 {} 的实时数据", target.getCode());
+                    log.warn("Unable to obtain real-time data for fund {}", target.getCode());
                 }
 
             } catch (Exception e) {
-                log.error("处理基金目标 {} 时发生异常: {}", target.getCode(), e.getMessage(), e);
+                log.error("Exception occurred while processing fund target {}: {}", target.getCode(), e.getMessage(),
+                        e);
             }
-        }
 
-        log.info("基金实时数据更新完成");
+        }
+        log.info("Fund real-time data update completed");
     }
 
     @Override
@@ -185,7 +188,7 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
                 return fundQuoteConverter.toFundQuote(target, fundData);
             }
         } catch (Exception e) {
-            log.error("获取基金 {} 数据时发生异常: {}", fundCode, e.getMessage(), e);
+            log.error("Exception occurred while fetching fund {} data: {}", fundCode, e.getMessage(), e);
         }
 
         return null;
@@ -228,16 +231,16 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
             // 1. 检查目标是否已存在
             Optional<DataCollectionTarget> existingTargetOpt = dataCollectionTargetRepository.findByCode(fundCode);
             if (existingTargetOpt.isPresent()) {
-                log.info("基金目标已存在: {}，直接返回已存在的配置", fundCode);
+                log.info("Fund target already exists: {}, returning existing config", fundCode);
                 return existingTargetOpt.get();
             }
 
-            log.info("开始添加目标基金: {}", fundCode);
+            log.info("Starting to add target fund: {}", fundCode);
 
             // 2. 获取基金实时数据
             FundQuote fundQuote = fetchFundRealTimeData(fundCode);
             if (fundQuote == null) {
-                throw new RuntimeException("无法获取基金 " + fundCode + " 的实时数据");
+                throw new RuntimeException("Unable to get real-time data for fund " + fundCode);
             }
 
             // 3. 从实时数据中提取基础信息（使用专门的转换器）
@@ -245,11 +248,11 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
             // 4. 保存到fund_basic表
             fundRepository.save(fundBasic);
-            log.info("基金基础信息已保存到fund_basic表: {}", fundCode);
+            log.info("Fund basic info saved to fund_basic table: {}", fundCode);
 
             // 5. 保存实时数据到fund_quote表
             fundQuoteRepository.save(fundQuote);
-            log.info("基金实时数据已保存到fund_quote表: {}", fundCode);
+            log.info("Fund real-time data saved to fund_quote table: {}", fundCode);
 
             // 6. 创建数据采集目标配置
             DataCollectionTarget target = new DataCollectionTarget();
@@ -262,13 +265,13 @@ public class DataCollectionAppServiceImpl implements DataCollectionAppService {
 
             // 7. 保存到data_collection_target表
             DataCollectionTarget savedTarget = dataCollectionTargetRepository.save(target);
-            log.info("数据采集目标已保存到data_collection_target表: {}", fundCode);
+            log.info("Data collection target saved to data_collection_target table: {}", fundCode);
 
             return savedTarget;
 
         } catch (Exception e) {
-            log.error("添加目标基金 {} 时发生异常: {}", fundCode, e.getMessage(), e);
-            throw new RuntimeException("添加目标基金失败: " + e.getMessage(), e);
+            log.error("Exception occurred while adding target fund {}: {}", fundCode, e.getMessage(), e);
+            throw new RuntimeException("Failed to add target fund: " + e.getMessage(), e);
         }
     }
 }

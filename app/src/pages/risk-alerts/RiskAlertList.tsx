@@ -1,11 +1,11 @@
-import { useEffect, useCallback } from 'react'
-import { Button, Space, Tag, Collapse, Empty, Spin, Badge } from 'antd'
+import { RiskAlert } from '@/types'
 import {
   CheckCircleOutlined,
-  StockOutlined,
   FundOutlined,
+  StockOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
+import { riskAlertsApi } from '@services/api/riskAlerts'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
 import {
   fetchRiskAlerts,
@@ -13,7 +13,8 @@ import {
   markRiskAlertsAsRead,
   resetList,
 } from '@store/slices/riskAlertsSlice'
-import { RiskAlert } from '@/types'
+import { Badge, Button, Collapse, Empty, Space, Spin, Tag } from 'antd'
+import { useCallback, useEffect } from 'react'
 
 const { Panel } = Collapse
 
@@ -22,6 +23,19 @@ const RiskAlertList = () => {
   const { list, unreadCount, loading, hasMore, cursor } = useAppSelector(
     (state) => state.riskAlerts
   )
+
+  // DEBUG: 测试 SSE 功能 - 调用后端接口触发风险检测
+  const handleTestSSE = async () => {
+    console.log('[DEBUG] Triggering risk alert check via API')
+    try {
+      const response = await riskAlertsApi.checkRiskAlerts()
+      console.log('[DEBUG] Risk check API response:', response)
+      // 如果需要，可以刷新列表
+      // dispatch(fetchRiskAlerts({}))
+    } catch (error) {
+      console.error('[DEBUG] Risk check API error:', error)
+    }
+  }
 
   // 按日期分组
   const groupedByDate = list.reduce((acc, alert) => {
@@ -65,8 +79,8 @@ const RiskAlertList = () => {
       alert.latestChangePercent > 0
         ? 'red'
         : alert.latestChangePercent < 0
-        ? 'green'
-        : 'default'
+          ? 'green'
+          : 'default'
 
     return (
       <div
@@ -143,8 +157,8 @@ const RiskAlertList = () => {
                   detail.changePercent > 0
                     ? 'red'
                     : detail.changePercent < 0
-                    ? 'green'
-                    : '#666',
+                      ? 'green'
+                      : '#666',
                 fontWeight: 500,
               }}
             >
@@ -160,15 +174,17 @@ const RiskAlertList = () => {
 
   const renderDateSection = (date: string, alerts: RiskAlert[]) => {
     const unreadAlerts = alerts.filter((a) => !a.isRead)
+    const displayDate = date || '未知日期'
+    const todayStr = new Date().toISOString().split('T')[0]
     return (
       <Collapse
-        key={date}
+        key={date || 'unknown'}
         ghost
         style={{ marginBottom: '8px' }}
         expandIconPosition="end"
       >
         <Panel
-          key={date}
+          key={date || 'unknown'}
           header={
             <div
               style={{
@@ -181,9 +197,9 @@ const RiskAlertList = () => {
             >
               <Space>
                 <span style={{ fontWeight: 500 }}>
-                  {date === new Date().toISOString().split('T')[0]
+                  {displayDate === todayStr
                     ? '今天'
-                    : date}
+                    : displayDate}
                 </span>
                 <Badge count={unreadAlerts.length} size="small" />
               </Space>
@@ -239,6 +255,13 @@ const RiskAlertList = () => {
             disabled={unreadCount === 0}
           >
             全部已读
+          </Button>
+          {/* DEBUG: 测试 SSE 功能 */}
+          <Button
+            danger
+            onClick={handleTestSSE}
+          >
+            [测试SSE]
           </Button>
         </Space>
       </div>

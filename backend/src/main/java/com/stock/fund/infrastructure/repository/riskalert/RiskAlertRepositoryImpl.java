@@ -50,7 +50,7 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
 
     @Override
     public List<RiskAlert> findByUserId(Long userId, LocalDate cursor, int limit) {
-        LocalDateTime cursorTime = cursor != null ? cursor.atStartOfDay() : LocalDateTime.now();
+        LocalDateTime cursorTime = cursor != null ? cursor.atStartOfDay() : null;
         List<RiskAlertPO> pos = riskAlertMapper.findByUserIdWithCursor(userId, cursorTime, limit);
         return pos.stream().map(this::mapToDomain).collect(Collectors.toList());
     }

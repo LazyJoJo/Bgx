@@ -44,13 +44,13 @@ public class SinaFundApiClient {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                log.warn("请求基金数据失败，HTTP Code: {}", response.code());
+                log.warn("Failed to request fund data, HTTP Code: {}", response.code());
                 return null;
             }
 
             ResponseBody body = response.body();
             if (body == null) {
-                log.warn("响应体为空");
+                log.warn("Response body is empty");
                 return null;
             }
 
@@ -63,7 +63,7 @@ public class SinaFundApiClient {
             return parseFundData(content, fundCode);
 
         } catch (Exception e) {
-            log.error("获取基金 {} 数据时发生异常", fundCode, e);
+            log.error("Exception occurred while fetching fund {} data", fundCode, e);
             return null;
         }
     }
@@ -106,7 +106,7 @@ public class SinaFundApiClient {
                 }
             }
         } catch (Exception e) {
-            log.error("解析基金数据时发生异常", e);
+            log.error("Exception occurred while parsing fund data", e);
         }
 
         return null;
@@ -122,7 +122,7 @@ public class SinaFundApiClient {
         try {
             return new BigDecimal(netValueStr).setScale(4, RoundingMode.HALF_UP);
         } catch (NumberFormatException e) {
-            log.warn("无法解析净值: {}", netValueStr);
+            log.warn("Cannot parse NAV: {}", netValueStr);
             return BigDecimal.ZERO;
         }
     }

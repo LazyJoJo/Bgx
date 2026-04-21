@@ -5,16 +5,16 @@
     <!-- 自定义findById实现，只查询存在的列 -->
     <select id="customFindById" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
         SELECT id, user_id, symbol, symbol_type, symbol_name,
-               change_percent, current_price,
-               is_read, triggered_at, created_at, updated_at
+               alert_date, time_point, change_percent, current_price,
+               yesterday_close, is_read, triggered_at, created_at, updated_at
         FROM risk_alert
         WHERE id = #{id}
     </select>
 
     <select id="findByUserIdWithCursor" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
         SELECT id, user_id, symbol, symbol_type, symbol_name,
-               change_percent, current_price,
-               is_read, triggered_at, created_at, updated_at
+               alert_date, time_point, change_percent, current_price,
+               yesterday_close, is_read, triggered_at, created_at, updated_at
         FROM risk_alert
         WHERE user_id = #{userId}
         <if test="cursor != null">
@@ -26,8 +26,8 @@
 
     <select id="findByUserIdAndSymbolAndDate" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
         SELECT id, user_id, symbol, symbol_type, symbol_name,
-               change_percent, current_price,
-               is_read, triggered_at, created_at, updated_at
+               alert_date, time_point, change_percent, current_price,
+               yesterday_close, is_read, triggered_at, created_at, updated_at
         FROM risk_alert
         WHERE user_id = #{userId}
         AND symbol = #{symbol}
@@ -38,8 +38,8 @@
 
     <select id="findByUserIdAndSymbolAndAlertDateAndTimePoint" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
         SELECT id, user_id, symbol, symbol_type, symbol_name,
-               change_percent, current_price,
-               is_read, triggered_at, created_at, updated_at
+               alert_date, time_point, change_percent, current_price,
+               yesterday_close, is_read, triggered_at, created_at, updated_at
         FROM risk_alert
         WHERE user_id = #{userId}
         AND symbol = #{symbol}
@@ -49,8 +49,8 @@
 
     <select id="findByUserIdAndDateRange" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
         SELECT id, user_id, symbol, symbol_type, symbol_name,
-               change_percent, current_price,
-               is_read, triggered_at, created_at, updated_at
+               alert_date, time_point, change_percent, current_price,
+               yesterday_close, is_read, triggered_at, created_at, updated_at
         FROM risk_alert
         WHERE user_id = #{userId}
         AND triggered_at::date BETWEEN #{startDate} AND #{endDate}
@@ -59,8 +59,8 @@
 
     <select id="findByUserIdWithPage" resultType="com.stock.fund.infrastructure.entity.riskalert.RiskAlertPO">
         SELECT id, user_id, symbol, symbol_type, symbol_name,
-               change_percent, current_price,
-               is_read, triggered_at, created_at, updated_at
+               alert_date, time_point, change_percent, current_price,
+               yesterday_close, is_read, triggered_at, created_at, updated_at
         FROM risk_alert
         WHERE user_id = #{userId}
         <if test="startDate != null">

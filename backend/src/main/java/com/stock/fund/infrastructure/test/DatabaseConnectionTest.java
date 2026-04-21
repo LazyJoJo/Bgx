@@ -1,14 +1,14 @@
 package com.stock.fund.infrastructure.test;
 
-import com.stock.fund.config.CacheConfig;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+
+import javax.sql.DataSource;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
 
 @Component
 public class DatabaseConnectionTest implements CommandLineRunner {
@@ -30,20 +30,20 @@ public class DatabaseConnectionTest implements CommandLineRunner {
     public void testDatabaseConnection() {
         try (Connection connection = dataSource.getConnection()) {
             if (connection.isValid(5)) { // 5秒超时
-                logger.info("✅ 数据库连接测试成功！");
-                logger.info("数据库URL: {}", connection.getMetaData().getURL());
-                logger.info("数据库驱动: {}", connection.getMetaData().getDriverName());
-                logger.info("数据库用户名: {}", connection.getMetaData().getUserName());
+                logger.info("Database connection test succeeded");
+                logger.info("Database URL: {}", connection.getMetaData().getURL());
+                logger.info("Database driver: {}", connection.getMetaData().getDriverName());
+                logger.info("Database user: {}", connection.getMetaData().getUserName());
             } else {
-                logger.error("❌ 数据库连接测试失败！");
+                logger.error("Database connection test failed");
             }
         } catch (SQLException e) {
-            logger.error("❌ 数据库连接测试异常: ", e);
+            logger.error("Database connection test exception: ", e);
         }
     }
 
     public void testCacheConnection() {
-        logger.info("✅ Caffeine 本地缓存配置已加载");
-        logger.info("缓存配置: maxSize={}, defaultTtl={}s", 10000, 3600);
+        logger.info("Caffeine local cache configuration loaded");
+        logger.info("Cache config: maxSize={}, defaultTtl={}s", 10000, 3600);
     }
 }

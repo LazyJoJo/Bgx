@@ -28,11 +28,11 @@ public class FundDataFetcher {
         try {
             FundQuote quote = dataCollectionAppService.fetchFundRealTimeData(code);
             if (quote == null) {
-                throw new RuntimeException("基金 " + code + " 数据为空");
+                throw new RuntimeException("Fund " + code + " data is empty");
             }
             return quote;
         } catch (Exception e) {
-            log.warn("获取基金 {} 信息失败: {}", code, e.getMessage());
+            log.warn("Failed to fetch fund {} info: {}", code, e.getMessage());
             throw e; // 触发重试
         }
     }
@@ -42,7 +42,7 @@ public class FundDataFetcher {
      */
     @Recover
     public FundQuote recoverFromFetchFailure(Exception e, String code) {
-        log.error("获取基金 {} 信息最终失败，已达到最大重试次数: {}", code, e.getMessage());
+        log.error("Fund {} fetch ultimately failed, max retries reached: {}", code, e.getMessage());
         return null;
     }
 }

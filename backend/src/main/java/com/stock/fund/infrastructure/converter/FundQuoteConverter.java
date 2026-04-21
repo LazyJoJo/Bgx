@@ -99,7 +99,7 @@ public class FundQuoteConverter {
                 return new BigDecimal(netValueStr).setScale(4, RoundingMode.HALF_UP);
             }
         } catch (NumberFormatException | NullPointerException e) {
-            log.warn("无法解析净值: {}", netValueStr);
+            log.warn("Cannot parse NAV: {}", netValueStr);
         }
         return BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
     }
@@ -119,7 +119,7 @@ public class FundQuoteConverter {
                 }
             }
         } catch (NumberFormatException | NullPointerException e) {
-            log.warn("无法解析昨日净值: {}", oldNetValueStr);
+            log.warn("Cannot parse previous NAV: {}", oldNetValueStr);
         }
 
         return new ParsedOldNetValue(oldNetValue, changePercent);
@@ -138,7 +138,7 @@ public class FundQuoteConverter {
         // 如果不在开盘时间段内，说明API返回的是上一个交易日的收盘数据，应该使用昨日日期
         if (!sinaFundApiClient.isMarketOpenTime(currentDate, specificTime)) {
             currentDate = currentDate.minusDays(1);
-            log.info("当前非开盘时间段，使用昨日日期: {}", currentDate);
+            log.info("Currently not trading hours, using previous date: {}", currentDate);
         }
 
         return new QuoteDateTime(currentDate, specificTime);
@@ -157,7 +157,7 @@ public class FundQuoteConverter {
                 return LocalTime.of(hour, minute, second);
             }
         } catch (Exception e) {
-            log.warn("无法解析时间字符串: {}", timeStr);
+            log.warn("Cannot parse time string: {}", timeStr);
         }
         return LocalTime.now();
     }

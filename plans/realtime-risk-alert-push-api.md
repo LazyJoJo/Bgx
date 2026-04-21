@@ -81,6 +81,7 @@ data: {jsonPayload}
 | `ping` | 每 30 秒 | 心跳保活 |
 | `new_alert` | 新的风险提醒产生 | 推送完整提醒数据 |
 | `unread_count_change` | 未读数量变化 | 仅推送数量变化（减少场景） |
+| `risk_cleared` | 风险解除 | 之前有风险的标的恢复正常，风险提醒移除 |
 
 #### 2.2.1 `init` — 连接初始化
 
@@ -131,7 +132,27 @@ data: {"unreadCount":6,"delta":1,"reason":"NEW_ALERT","timestamp":"2026-04-20T11
 |------|------|------|
 | `unreadCount` | `number` | 变化后的未读总数 |
 | `delta` | `number` | 变化量（+1 / -N） |
-| `reason` | `string` | 变化原因：`NEW_ALERT` / `MARK_READ` |
+| `reason` | `string` | 变化原因：`NEW_ALERT` / `MARK_READ` / `RISK_CLEARED` |
+
+#### 2.2.5 `risk_cleared` — 风险解除
+
+```
+event: risk_cleared
+data: {"id":123,"symbol":"000001","symbolName":"平安银行","symbolType":"STOCK","date":"2026-04-20","lastChangePercent":-2.35,"currentChangePercent":-0.65,"currentPrice":12.35,"latestTriggeredAt":"2026-04-20T11:30:00+08:00"}
+
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | `number` | 被解除的风险提醒 ID |
+| `symbol` | `string` | 标的代码 |
+| `symbolName` | `string` | 标的名称 |
+| `symbolType` | `string` | `STOCK` / `FUND` |
+| `date` | `string` | 提醒日期（YYYY-MM-DD） |
+| `lastChangePercent` | `number` | 解除前的涨跌幅（%） |
+| `currentChangePercent` | `number` | 当前涨跌幅（已恢复到安全范围） |
+| `currentPrice` | `number` | 当前价格 |
+| `latestTriggeredAt` | `string` | 最后触发时间（ISO 8601） |
 
 ---
 
@@ -143,7 +164,7 @@ data: {"unreadCount":6,"delta":1,"reason":"NEW_ALERT","timestamp":"2026-04-20T11
 
 ```java
 public class RiskAlertSSEEvent<T> {
-    private String eventType;   // init | ping | new_alert | unread_count_change
+    private String eventType;   // init | ping | new_alert | unread_count_change | risk_cleared
     private String messageId;   // UUID
     private T payload;
     private Instant timestamp;
@@ -191,6 +212,22 @@ public class UnreadCountPayload {
     private int delta;
     private String reason;
     private Instant timestamp;
+}
+```
+
+#### `RiskClearedPayload`
+
+```java
+public class RiskClearedPayload {
+    private Long id;
+    private String symbol;
+    private String symbolName;
+    private String symbolType;
+    private String date;
+    private BigDecimal lastChangePercent;      // 解除前的涨跌幅
+    private BigDecimal currentChangePercent;  // 当前涨跌幅（已恢复）
+    private BigDecimal currentPrice;
+    private String latestTriggeredAt;
 }
 ```
 
@@ -260,6 +297,11 @@ public interface RiskAlertPushService {
      * 向指定用户的所有活跃连接广播未读数变化
      */
     void pushUnreadCountChange(Long userId, UnreadCountPayload payload);
+
+    /**
+     * 向指定用户的所有活跃连接广播风险解除事件
+     */
+    void pushRiskCleared(Long userId, RiskClearedPayload payload);
 
     /**
      * 向指定用户的所有活跃连接发送心跳
@@ -852,6 +894,8 @@ location /api/risk-alerts/stream {
 ---
 
 ## 7. 扩展预留：Kafka 多实例广播
+
+> ⚠️ **当前未实现**：以下为多实例部署时的扩展方案，当前系统为单机部署，无需此改动。
 
 当系统从单机扩展到多实例时，推送架构演进如下：
 

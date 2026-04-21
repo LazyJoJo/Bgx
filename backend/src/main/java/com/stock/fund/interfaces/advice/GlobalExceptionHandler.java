@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
-        logger.warn("业务异常: {} - {}", e.getCode(), e.getMessage());
+        logger.warn("Business exception: {} - {}", e.getCode(), e.getMessage());
         ApiResponse<Void> response = new ApiResponse<>(false, "[" + e.getCode() + "] " + e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException e) {
-        logger.warn("资源未找到: {} - {}", e.getCode(), e.getMessage());
+        logger.warn("Resource not found: {} - {}", e.getCode(), e.getMessage());
         ApiResponse<Void> response = new ApiResponse<>(false, "[" + e.getCode() + "] " + e.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
@@ -50,8 +50,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(DataCollectionException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataCollectionException(DataCollectionException e) {
-        logger.error("数据采集异常: {}", e.getMessage(), e);
-        ApiResponse<Void> response = ApiResponse.error("数据采集失败: " + e.getMessage());
+        logger.error("Data collection exception: {}", e.getMessage(), e);
+        ApiResponse<Void> response = ApiResponse.error("Data collection failed: " + e.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
     }
 
@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
 
-        logger.warn("参数验证失败: {}", errors);
+        logger.warn("Parameter validation failed: {}", errors);
         ApiResponse<Map<String, String>> response = new ApiResponse<>();
         response.setSuccess(false);
         response.setMessage("参数验证失败");
@@ -89,8 +89,8 @@ public class GlobalExceptionHandler {
                     "[" + ((BusinessException) e).getCode() + "] " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
-        logger.error("运行时异常: {}", e.getMessage(), e);
-        ApiResponse<Void> response = ApiResponse.error("系统内部错误，请稍后重试");
+        logger.error("Runtime exception: {}", e.getMessage(), e);
+        ApiResponse<Void> response = ApiResponse.error("Internal system error, please try again later");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
@@ -105,8 +105,8 @@ public class GlobalExceptionHandler {
                     "[" + ((BusinessException) e).getCode() + "] " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
-        logger.error("未处理的异常: {}", e.getMessage(), e);
-        ApiResponse<Void> response = ApiResponse.error("系统发生未知错误");
+        logger.error("Unhandled exception: {}", e.getMessage(), e);
+        ApiResponse<Void> response = ApiResponse.error("Unknown system error occurred");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }
