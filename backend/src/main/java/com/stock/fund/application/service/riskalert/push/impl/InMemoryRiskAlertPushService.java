@@ -14,6 +14,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import com.stock.fund.application.service.riskalert.push.RiskAlertPushService;
 import com.stock.fund.application.service.riskalert.push.dto.AlertClearedPayload;
 import com.stock.fund.application.service.riskalert.push.dto.InitPayload;
@@ -43,18 +44,22 @@ public class InMemoryRiskAlertPushService implements RiskAlertPushService {
     // - expireAfterAccess: 30分钟无访问则过期清理
     // - removalListener: 记录清理原因
     private static final Cache<Long, CopyOnWriteArrayList<SseEmitter>> userEmitters = Caffeine.newBuilder()
-            .maximumSize(100_000).expireAfterAccess(30, TimeUnit.MINUTES).removalListener((userId, emitters, cause) -> {
-                if (emitters != null && !emitters.isEmpty()) {
-                    log.info("Caffeine removing user emitters: userId={}, cause={}, count={}", userId, cause,
-                            emitters.size());
-                    // Complete all remaining emitters before removal
-                    emitters.forEach(emitter -> {
-                        try {
-                            emitter.complete();
-                        } catch (Exception e) {
-                            log.debug("Exception completing emitter during removal: userId={}", userId);
-                        }
-                    });
+            .maximumSize(100_000).expireAfterAccess(30, TimeUnit.MINUTES)
+            .removalListener((RemovalListener<Long, CopyOnWriteArrayList<SseEmitter>>) (userId, emitters, cause) -> {
+                if (emitters != null) {
+                    CopyOnWriteArrayList<SseEmitter> emitterList = emitters;
+                    if (!emitterList.isEmpty()) {
+                        log.info("Caffeine removing user emitters: userId={}, cause={}, count={}", userId, cause,
+                                emitterList.size());
+                        // Complete all remaining emitters before removal
+                        emitterList.forEach(emitter -> {
+                            try {
+                                emitter.complete();
+                            } catch (Exception e) {
+                                log.debug("Exception completing emitter during removal: userId={}", userId);
+                            }
+                        });
+                    }
                 }
             }).build();
 
