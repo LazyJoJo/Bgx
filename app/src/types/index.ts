@@ -147,10 +147,12 @@ export interface KLineData {
 // 风险提醒明细
 export interface RiskAlertDetail {
   id: number
-  changePercent: number
+  riskAlertId?: number
+  changePercent: number     // 涨跌幅百分比（用于展示，固定2位小数）
   currentPrice: number
   triggeredAt: string
   triggerReason: string
+  timePoint?: string       // 时间点：11:30 / 14:30
 }
 
 // 风险提醒（合并后的数据）
@@ -160,13 +162,32 @@ export interface RiskAlert {
   symbolType: 'STOCK' | 'FUND'
   symbolName: string
   date: string
-  triggerCount: number
-  maxChangePercent: number
-  latestChangePercent: number
+  status: 'ACTIVE' | 'CLEARED' | 'NO_ALERT'  // 跟踪状态
+  latestChangePercent: number    // 当前最新涨跌幅
+  maxChangePercent: number      // 当日最高涨幅
+  minChangePercent: number      // 当日最低跌幅
   currentPrice: number
   yesterdayClose: number
-  isRead: boolean
   latestTriggeredAt: string
+  isRead: boolean
+  details?: RiskAlertDetail[]
+}
+
+// 当日风险汇总响应
+export interface TodaySummaryResponse {
+  date: string
+  hasAlerts: boolean
+  totalCount: number
+  activeCount: number
+  clearedCount: number
+  alerts: RiskAlert[]
+}
+
+// 风险明细列表响应
+export interface AlertDetailsResponse {
+  alertId: number
+  symbol: string
+  totalCount: number
   details: RiskAlertDetail[]
 }
 

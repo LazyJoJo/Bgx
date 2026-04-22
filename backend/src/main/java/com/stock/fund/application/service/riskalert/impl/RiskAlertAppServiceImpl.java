@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -22,15 +23,18 @@ import com.stock.fund.application.service.riskalert.dto.RiskAlertPageResponse;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertQueryDTO;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertSummaryDTO;
 import com.stock.fund.application.service.riskalert.push.RiskAlertPushService;
+import com.stock.fund.application.service.riskalert.push.dto.AlertClearedPayload;
 import com.stock.fund.application.service.riskalert.push.dto.NewAlertPayload;
-import com.stock.fund.application.service.riskalert.push.dto.RiskClearedPayload;
+import com.stock.fund.application.service.riskalert.push.dto.RiskAlertDetailPayload;
 import com.stock.fund.application.service.riskalert.push.dto.UnreadCountPayload;
 import com.stock.fund.domain.entity.Fund;
 import com.stock.fund.domain.entity.Stock;
 import com.stock.fund.domain.entity.riskalert.RiskAlert;
+import com.stock.fund.domain.entity.riskalert.RiskAlertDetail;
 import com.stock.fund.domain.entity.subscription.UserSubscription;
 import com.stock.fund.domain.repository.FundQuoteRepository;
 import com.stock.fund.domain.repository.FundRepository;
+import com.stock.fund.domain.repository.RiskAlertDetailRepository;
 import com.stock.fund.domain.repository.RiskAlertQuery;
 import com.stock.fund.domain.repository.RiskAlertRepository;
 import com.stock.fund.domain.repository.StockQuoteRepository;
@@ -47,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
     private final RiskAlertRepository riskAlertRepository;
+    private final RiskAlertDetailRepository riskAlertDetailRepository;
     private final StockQuoteRepository stockQuoteRepository;
     private final FundQuoteRepository fundQuoteRepository;
     private final StockRepository stockRepository;
@@ -73,6 +78,16 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
             existingAlert.setCurrentPrice(riskAlert.getCurrentPrice());
             existingAlert.setTriggeredAt(LocalDateTime.now());
             existingAlert.setIsRead(false); // Reset to unread on update
+            // Update max/min change percent (track highest gain and lowest loss for the
+            // day)
+            if (existingAlert.getMaxChangePercent() == null
+                    || riskAlert.getChangePercent().compareTo(existingAlert.getMaxChangePercent()) > 0) {
+                existingAlert.setMaxChangePercent(riskAlert.getChangePercent());
+            }
+            if (existingAlert.getMinChangePercent() == null
+                    || riskAlert.getChangePercent().compareTo(existingAlert.getMinChangePercent()) < 0) {
+                existingAlert.setMinChangePercent(riskAlert.getChangePercent());
+            }
             log.info("Updating risk alert: symbol={}, date={}, timePoint={}", riskAlert.getSymbol(),
                     riskAlert.getAlertDate(), riskAlert.getTimePoint());
             savedAlert = riskAlertRepository.update(existingAlert);
@@ -84,6 +99,10 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         } else {
             riskAlert.setIsRead(false);
             riskAlert.setTriggeredAt(LocalDateTime.now());
+            // Set status and max/min change percent for v2.0 schema
+            riskAlert.setStatus("ACTIVE");
+            riskAlert.setMaxChangePercent(riskAlert.getChangePercent());
+            riskAlert.setMinChangePercent(riskAlert.getChangePercent());
             log.info("Creating risk alert: symbol={}, date={}, timePoint={}", riskAlert.getSymbol(),
                     riskAlert.getAlertDate(), riskAlert.getTimePoint());
             savedAlert = riskAlertRepository.save(riskAlert);
@@ -98,18 +117,20 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
 
     /**
      * 推送新风险提醒到 SSE 客户端
+     * <p>
+     * Note: 此方法创建合成detail payload用于SSE推送，不包含真实detail ID。 真实的detail记录在
+     * processSubscriptionRisk() 中创建并通过 pushNewAlertWithDetails() 推送。
      */
     private void pushNewAlert(Long userId, RiskAlert alert) {
         try {
             // Build detail list for the pushed alert (contains at least the current
             // trigger)
-            java.util.List<com.stock.fund.application.service.riskalert.push.dto.RiskAlertDetailPayload> details = java.util.Collections
-                    .singletonList(com.stock.fund.application.service.riskalert.push.dto.RiskAlertDetailPayload
-                            .builder().id(alert.getId()).changePercent(alert.getChangePercent())
-                            .currentPrice(alert.getCurrentPrice())
-                            .triggeredAt(com.stock.fund.application.service.riskalert.push.dto.NewAlertPayload
-                                    .formatTime(alert.getTriggeredAt()))
-                            .triggerReason("PRICE_CHANGE").build());
+            // Note: id is not set since no real detail record exists here
+            // Real detail creation happens in processSubscriptionRisk()
+            java.util.List<RiskAlertDetailPayload> details = java.util.Collections.singletonList(RiskAlertDetailPayload
+                    .builder().changePercent(alert.getChangePercent()).currentPrice(alert.getCurrentPrice())
+                    .triggeredAt(NewAlertPayload.formatTime(alert.getTriggeredAt())).triggerReason("PRICE_CHANGE")
+                    .build());
 
             // Fallback date: use alertDate if available, otherwise use triggeredAt date
             String dateStr = alert.getAlertDate() != null ? alert.getAlertDate().toString()
@@ -120,17 +141,9 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
                     .date(dateStr).latestChangePercent(alert.getChangePercent())
                     .maxChangePercent(alert.getChangePercent()).currentPrice(alert.getCurrentPrice())
                     .yesterdayClose(alert.getYesterdayClose())
-                    .latestTriggeredAt(NewAlertPayload.formatTime(alert.getTriggeredAt())).triggerCount(1).isRead(false) // TODO:
-                                                                                                                         // RiskAlert
-                                                                                                                         // entity
-                                                                                                                         // lacks
-                                                                                                                         // triggerCount
-                                                                                                                         // field,
-                                                                                                                         // always
-                                                                                                                         // 1
-                                                                                                                         // for
-                                                                                                                         // now
-                    .details(details).build();
+                    // triggerCount: 不再传递，前端用 details.length 计算
+                    .latestTriggeredAt(NewAlertPayload.formatTime(alert.getTriggeredAt())).isRead(false)
+                    .messageId(UUID.randomUUID().toString()).details(details).build();
             riskAlertPushService.pushNewAlert(userId, payload);
             log.debug("Pushed new alert SSE event: userId={}, symbol={}", userId, alert.getSymbol());
         } catch (Exception e) {
@@ -140,16 +153,58 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
     }
 
     /**
-     * 推送未读数变化到 SSE 客户端
+     * Push unread count change to SSE client
      */
     private void pushUnreadCountChange(Long userId, RiskAlert alert) {
         try {
             long unreadCount = riskAlertRepository.countUnreadByUserId(userId);
             UnreadCountPayload payload = UnreadCountPayload.of(unreadCount, 1, "NEW_ALERT");
             riskAlertPushService.pushUnreadCountChange(userId, payload);
-            log.debug("Pushed unread count change SSE event: userId={}, unreadCount={}", userId, unreadCount);
+            log.info("Pushed unread count change SSE event: userId={}, unreadCount={}", userId, unreadCount);
         } catch (Exception e) {
             log.warn("Failed to push unread count change: userId={}, symbol={}, error={}", userId, alert.getSymbol(),
+                    e.getMessage());
+        }
+    }
+
+    /**
+     * Push new alert with details list to SSE client
+     */
+    private void pushNewAlertWithDetails(Long userId, RiskAlert alert, List<RiskAlertDetail> detailList) {
+        try {
+            // Use pre-fetched detailList if provided, otherwise query
+            java.util.List<com.stock.fund.application.service.riskalert.push.dto.RiskAlertDetailPayload> details = (detailList != null
+                    ? detailList.stream()
+                            .map(d -> com.stock.fund.application.service.riskalert.push.dto.RiskAlertDetailPayload
+                                    .builder().id(d.getId()).changePercent(d.getChangePercent())
+                                    .currentPrice(d.getCurrentPrice())
+                                    .triggeredAt(NewAlertPayload.formatTime(d.getTriggeredAt()))
+                                    .triggerReason(d.getTriggerReason()).build())
+                            .collect(Collectors.toList())
+                    : java.util.Collections.emptyList());
+
+            // Fallback date: use alertDate if available, otherwise use triggeredAt date
+            String dateStr = alert.getAlertDate() != null ? alert.getAlertDate().toString()
+                    : (alert.getTriggeredAt() != null ? alert.getTriggeredAt().toLocalDate().toString() : null);
+
+            String status = alert.getStatus() != null ? alert.getStatus() : "ACTIVE";
+
+            NewAlertPayload payload = NewAlertPayload.builder().id(alert.getId()).symbol(alert.getSymbol())
+                    .symbolName(alert.getSymbolName()).symbolType(alert.getSymbolType()).date(dateStr).status(status)
+                    .latestChangePercent(alert.getChangePercent())
+                    .maxChangePercent(alert.getMaxChangePercent() != null ? alert.getMaxChangePercent()
+                            : alert.getChangePercent())
+                    .minChangePercent(alert.getMinChangePercent() != null ? alert.getMinChangePercent()
+                            : alert.getChangePercent())
+                    .currentPrice(alert.getCurrentPrice()).yesterdayClose(alert.getYesterdayClose())
+                    .latestTriggeredAt(NewAlertPayload.formatTime(alert.getTriggeredAt())).isRead(false)
+                    .messageId(UUID.randomUUID().toString()).details(details).build();
+
+            riskAlertPushService.pushNewAlert(userId, payload);
+            log.debug("Pushed new alert SSE event: userId={}, symbol={}, detailsCount={}", userId, alert.getSymbol(),
+                    details.size());
+        } catch (Exception e) {
+            log.warn("Failed to push new alert: userId={}, symbol={}, error={}", userId, alert.getSymbol(),
                     e.getMessage());
         }
     }
@@ -266,16 +321,22 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
             }
         }
 
-        log.info("Risk alert detection completed");
+        log.info("Risk alert detection completed, timePoint={}", timePoint);
     }
 
     @Override
     @Transactional
     public void checkAndCreateRiskAlerts() {
-        // 根据当前时间自动判断时间点
+        // Auto-determine time point based on current time
         LocalDateTime now = LocalDateTime.now();
-        String timePoint = now.getHour() < 12 ? "11:30" : "14:30";
-        log.info("Auto-determining risk alert time point: {}", timePoint);
+        int hour = now.getHour();
+        String timePoint;
+        if (hour < 12) {
+            timePoint = "11:30";
+        } else {
+            timePoint = "14:30";
+        }
+        log.info("Auto-determined time point: {}, proceeding with risk alert detection", timePoint);
         checkAndCreateRiskAlerts(timePoint);
     }
 
@@ -346,83 +407,197 @@ public class RiskAlertAppServiceImpl implements RiskAlertAppService {
         log.info("Processing subscription-triggered risk: subscriptionId={}, symbol={}, currentPrice={}, timePoint={}",
                 subscription.getId(), subscription.getSymbol(), currentPrice, timePoint);
 
-        // 获取昨日收盘价
+        // Get yesterday's close price
         BigDecimal yesterdayClose = getYesterdayClose(subscription.getSymbol(), subscription.getSymbolType());
 
-        // 计算涨跌幅（用于记录）- 2位小数
+        // Calculate change percent (2 decimal places)
         BigDecimal changePercent = BigDecimal.ZERO;
         boolean hasRisk = false;
         if (yesterdayClose != null && yesterdayClose.compareTo(BigDecimal.ZERO) != 0) {
             changePercent = currentPrice.subtract(yesterdayClose).divide(yesterdayClose, 4, RoundingMode.HALF_UP)
                     .multiply(new BigDecimal("100")).setScale(2, RoundingMode.HALF_UP);
 
-            // 使用订阅的 targetChangePercent 判断是否触发风险
+            // Use subscription's targetChangePercent to determine if risk is triggered
             if (subscription.getTargetChangePercent() != null) {
                 hasRisk = changePercent.abs().compareTo(subscription.getTargetChangePercent()) >= 0;
             }
         }
 
         LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
 
-        if (!hasRisk) {
-            // 风险条件不再满足，检查是否存在之前创建的风险提醒记录
-            LocalDate today = now.toLocalDate();
-            Optional<RiskAlert> existingAlert = riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(
-                    subscription.getUserId(), subscription.getSymbol(), today, timePoint);
+        // Get symbol name
+        String symbolName = subscription.getSymbolName();
+        if (symbolName == null || symbolName.isEmpty()) {
+            symbolName = fetchSymbolName(subscription.getSymbol(), subscription.getSymbolType());
+        }
 
-            if (existingAlert.isPresent() && Boolean.TRUE.equals(existingAlert.get().getHasRisk())) {
-                // 之前有风险提醒，现在风险消除了
-                RiskAlert oldAlert = existingAlert.get();
-                log.info("Risk cleared for symbol={}, was at {}%, now at {}%", subscription.getSymbol(),
-                        oldAlert.getChangePercent(), changePercent);
+        // Find existing alert (ACTIVE or CLEARED status) - once alerted, always track
+        Optional<RiskAlert> existingAlert = findExistingAlertBySymbolAndDate(subscription.getUserId(),
+                subscription.getSymbol(), today);
 
-                // 构建风险消除事件
-                RiskClearedPayload clearedPayload = RiskClearedPayload.builder().id(oldAlert.getId())
-                        .symbol(oldAlert.getSymbol()).symbolName(oldAlert.getSymbolName())
-                        .symbolType(oldAlert.getSymbolType())
-                        .date(oldAlert.getAlertDate() != null ? oldAlert.getAlertDate().toString() : today.toString())
-                        .lastChangePercent(oldAlert.getChangePercent()).currentChangePercent(changePercent)
-                        .currentPrice(currentPrice).latestTriggeredAt(NewAlertPayload.formatTime(now)).build();
+        if (existingAlert.isPresent()) {
+            // Already has alert record - update and always create detail record
+            RiskAlert alert = existingAlert.get();
+            boolean wasActive = "ACTIVE".equals(alert.getStatus());
+            boolean nowCleared = !hasRisk && wasActive;
 
-                // 删除旧的风险提醒记录
-                riskAlertRepository.deleteById(oldAlert.getId());
+            // Create new detail record regardless of risk status
+            // Once alerted, always track subsequent data points
+            RiskAlertDetail detail = new RiskAlertDetail();
+            detail.setRiskAlertId(alert.getId());
+            detail.setSymbol(subscription.getSymbol());
+            detail.setChangePercent(changePercent);
+            detail.setCurrentPrice(currentPrice);
+            detail.setTriggeredAt(now);
+            detail.setTriggerReason(hasRisk ? "RISK_DETECTED" : "PRICE_CHANGE");
+            detail.setTimePoint(now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+            RiskAlertDetail savedDetail = riskAlertDetailRepository.save(detail);
 
-                // 推送风险消除事件
-                riskAlertPushService.pushRiskCleared(subscription.getUserId(), clearedPayload);
+            // Update alert with new values
+            alert.setLatestDetailId(savedDetail.getId());
+            alert.setChangePercent(changePercent);
+            alert.setCurrentPrice(currentPrice);
+            alert.setTriggeredAt(now);
 
-                // 更新未读数
-                long unreadCount = riskAlertRepository.countUnreadByUserId(subscription.getUserId());
-                UnreadCountPayload unreadPayload = UnreadCountPayload.of(unreadCount, -1, "RISK_CLEARED");
-                riskAlertPushService.pushUnreadCountChange(subscription.getUserId(), unreadPayload);
+            // Update max/min change percent
+            BigDecimal maxChange = alert.getMaxChangePercent();
+            BigDecimal minChange = alert.getMinChangePercent();
+            if (maxChange == null || changePercent.compareTo(maxChange) > 0) {
+                alert.setMaxChangePercent(changePercent);
+            }
+            if (minChange == null || changePercent.compareTo(minChange) < 0) {
+                alert.setMinChangePercent(changePercent);
             }
 
+            // Set status and isRead based on condition BEFORE saving
+            if (nowCleared) {
+                alert.setStatus("CLEARED");
+                alert.setIsRead(false); // Re-trigger unread for status change
+            } else if (hasRisk) {
+                alert.setStatus("ACTIVE");
+                alert.setIsRead(false);
+            }
+
+            // Save to database FIRST - ensure isRead=false is committed before counting
+            // unread
+            riskAlertRepository.update(alert);
+
+            // THEN push SSE events with accurate unread count
+            if (nowCleared) {
+                List<RiskAlertDetail> updatedDetailList = riskAlertDetailRepository.findByRiskAlertId(alert.getId());
+
+                // Convert detail entities to DTOs for SSE payload
+                List<com.stock.fund.application.service.riskalert.push.dto.RiskAlertDetailPayload> detailPayloads = (updatedDetailList != null
+                        ? updatedDetailList.stream()
+                                .map(d -> com.stock.fund.application.service.riskalert.push.dto.RiskAlertDetailPayload
+                                        .builder().id(d.getId()).changePercent(d.getChangePercent())
+                                        .currentPrice(d.getCurrentPrice())
+                                        .triggeredAt(NewAlertPayload.formatTime(d.getTriggeredAt()))
+                                        .triggerReason(d.getTriggerReason()).build())
+                                .collect(Collectors.toList())
+                        : java.util.Collections.emptyList());
+
+                AlertClearedPayload clearedPayload = AlertClearedPayload.builder().id(alert.getId())
+                        .symbol(alert.getSymbol()).symbolName(alert.getSymbolName()).symbolType(alert.getSymbolType())
+                        .date(today.toString()).status("CLEARED").lastChangePercent(alert.getChangePercent())
+                        .currentChangePercent(changePercent).maxChangePercent(alert.getMaxChangePercent())
+                        .minChangePercent(alert.getMinChangePercent()).currentPrice(currentPrice)
+                        .latestTriggeredAt(NewAlertPayload.formatTime(now)).details(detailPayloads).build();
+
+                riskAlertPushService.pushAlertCleared(subscription.getUserId(), clearedPayload);
+                pushUnreadCountChange(subscription.getUserId(), alert); // Also update unread count
+                log.info("Risk cleared, pushing alert_cleared: symbol={}, userId={}, detailsCount={}",
+                        subscription.getSymbol(), subscription.getUserId(), detailPayloads.size());
+            } else if (hasRisk && !wasActive) {
+                // Re-triggered after being cleared
+                List<RiskAlertDetail> updatedDetailList = riskAlertDetailRepository.findByRiskAlertId(alert.getId());
+                pushNewAlertWithDetails(subscription.getUserId(), alert, updatedDetailList);
+                pushUnreadCountChange(subscription.getUserId(), alert);
+            } else if (hasRisk) {
+                // Still active - push update
+                List<RiskAlertDetail> updatedDetailList = riskAlertDetailRepository.findByRiskAlertId(alert.getId());
+                pushNewAlertWithDetails(subscription.getUserId(), alert, updatedDetailList);
+                pushUnreadCountChange(subscription.getUserId(), alert);
+            }
+
+            return;
+        }
+
+        // No existing alert - only create if has risk
+        if (!hasRisk) {
             log.debug(
                     "Price did not meet alert condition, not creating risk record: symbol={}, currentPrice={}, changePercent={}",
                     subscription.getSymbol(), currentPrice, changePercent);
             return;
         }
 
-        // 使用传入的时间点
-        // 创建风险记录
-        RiskAlert riskAlert = new RiskAlert();
-        riskAlert.setUserId(subscription.getUserId());
-        riskAlert.setSymbol(subscription.getSymbol());
-        riskAlert.setSymbolType(subscription.getSymbolType());
-        riskAlert.setAlertDate(now.toLocalDate());
-        riskAlert.setTimePoint(timePoint);
-        riskAlert.setHasRisk(true);
-        riskAlert.setChangePercent(changePercent);
-        riskAlert.setCurrentPrice(currentPrice);
-        riskAlert.setYesterdayClose(yesterdayClose);
+        // First trigger: create new risk_alert + first detail
+        log.info("Creating new risk alert: symbol={}, date={}, timePoint={}", subscription.getSymbol(), today,
+                timePoint);
 
-        // 获取标的名称（优先使用订阅中已保存的名称）
-        String symbolName = subscription.getSymbolName();
-        if (symbolName == null || symbolName.isEmpty()) {
-            symbolName = fetchSymbolName(subscription.getSymbol(), subscription.getSymbolType());
-        }
-        riskAlert.setSymbolName(symbolName);
+        // Create alert with ACTIVE status
+        RiskAlert alert = new RiskAlert();
+        alert.setUserId(subscription.getUserId());
+        alert.setSymbol(subscription.getSymbol());
+        alert.setSymbolType(subscription.getSymbolType());
+        alert.setSymbolName(symbolName);
+        alert.setAlertDate(today);
+        alert.setTimePoint(timePoint);
+        alert.setHasRisk(true);
+        alert.setChangePercent(changePercent);
+        alert.setCurrentPrice(currentPrice);
+        alert.setYesterdayClose(yesterdayClose);
+        alert.setStatus("ACTIVE");
+        alert.setMaxChangePercent(changePercent);
+        alert.setMinChangePercent(changePercent);
+        alert.setIsRead(false);
+        alert.setTriggeredAt(now);
 
-        createOrUpdateRiskAlert(riskAlert);
+        // Save alert first to get ID
+        RiskAlert savedAlert = riskAlertRepository.save(alert);
+
+        // Create first detail record
+        RiskAlertDetail detail = new RiskAlertDetail();
+        detail.setRiskAlertId(savedAlert.getId());
+        detail.setSymbol(subscription.getSymbol());
+        detail.setChangePercent(changePercent);
+        detail.setCurrentPrice(currentPrice);
+        detail.setTriggeredAt(now);
+        detail.setTriggerReason("PRICE_CHANGE");
+        detail.setTimePoint(now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+        RiskAlertDetail savedDetail = riskAlertDetailRepository.save(detail);
+
+        // Update alert with latestDetailId
+        savedAlert.setLatestDetailId(savedDetail.getId());
+        riskAlertRepository.update(savedAlert);
+
+        // Push new_alert with first detail
+        pushNewAlertWithDetails(subscription.getUserId(), savedAlert, java.util.List.of(savedDetail));
+
+        // Update unread count
+        pushUnreadCountChange(subscription.getUserId(), savedAlert);
+    }
+
+    /**
+     * Find active alert by userId, symbol, and date (status=ACTIVE)
+     */
+    private Optional<RiskAlert> findActiveAlertBySymbolAndDate(Long userId, String symbol, LocalDate alertDate) {
+        // Query all alerts for this user+symbol+date and find the active one
+        List<RiskAlert> alerts = riskAlertRepository.findByUserIdAndDateRange(userId, alertDate, alertDate);
+        return alerts.stream().filter(a -> symbol.equals(a.getSymbol())).filter(a -> "ACTIVE".equals(a.getStatus()))
+                .findFirst();
+    }
+
+    /**
+     * Find any existing alert by userId, symbol, and date (status=ACTIVE or
+     * CLEARED) Once an alert exists, we always track subsequent data points
+     */
+    private Optional<RiskAlert> findExistingAlertBySymbolAndDate(Long userId, String symbol, LocalDate alertDate) {
+        // Query all alerts for this user+symbol+date and find any existing one
+        List<RiskAlert> alerts = riskAlertRepository.findByUserIdAndDateRange(userId, alertDate, alertDate);
+        return alerts.stream().filter(a -> symbol.equals(a.getSymbol()))
+                .filter(a -> "ACTIVE".equals(a.getStatus()) || "CLEARED".equals(a.getStatus())).findFirst();
     }
 
     private String fetchSymbolName(String symbol, String symbolType) {

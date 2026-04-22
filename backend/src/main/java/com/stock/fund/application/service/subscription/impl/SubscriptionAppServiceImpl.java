@@ -66,7 +66,7 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
         if (request.getTargetChangePercent() != null) {
             subscription.setTargetChangePercent(request.getTargetChangePercent());
         }
-        subscription.setIsActive(request.getEnabled() != null && request.getEnabled() ? true : false);
+        subscription.setIsActive(request.getIsActive() != null && request.getIsActive() ? true : false);
 
         // 根据symbol查询标的名称
         if (subscription.getSymbolName() == null || subscription.getSymbolName().isEmpty()) {
@@ -83,8 +83,8 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchCreateSubscriptionResponse batchCreateSubscription(BatchCreateSubscriptionRequest request) {
-        logger.info("Batch creating subscriptions: userId={}, symbolCount={}, type={}", request.getUserId(),
-                request.getSymbols().size(), request.getSymbolType());
+        logger.info("Batch creating subscriptions: userId={}, symbolCount={}, type={}, isActive={}",
+                request.getUserId(), request.getSymbols().size(), request.getSymbolType(), request.getIsActive());
 
         // 1. 校验参数
         validateBatchRequest(request);
@@ -160,6 +160,7 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public UserSubscription updateSubscription(Long subscriptionId, UpdateSubscriptionRequest request) {
         logger.info("Updating subscription: ID={}", subscriptionId);
 
@@ -299,6 +300,7 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
 
     // 构建订阅实体
     private UserSubscription buildSubscription(BatchCreateSubscriptionRequest request, String symbol) {
+        logger.info("Building subscription: symbol={}, request.isActive={}", symbol, request.getIsActive());
         UserSubscription subscription = new UserSubscription();
         subscription.setUserId(request.getUserId());
         subscription.setSymbol(symbol);
@@ -307,7 +309,7 @@ public class SubscriptionAppServiceImpl implements SubscriptionAppService {
         if (request.getTargetChangePercent() != null) {
             subscription.setTargetChangePercent(request.getTargetChangePercent());
         }
-        subscription.setIsActive(request.getEnabled() != null && request.getEnabled());
+        subscription.setIsActive(request.getIsActive() != null && request.getIsActive());
         subscription.setDescription(request.getSymbolName());
 
         // 根据symbol查询标的名称

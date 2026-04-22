@@ -72,6 +72,12 @@ class RiskAlertAppServiceTest {
         @Mock
         private RiskAlertQueryService riskAlertQueryService;
 
+        @Mock
+        private com.stock.fund.domain.repository.RiskAlertDetailRepository riskAlertDetailRepository;
+
+        @Mock
+        private com.stock.fund.application.service.riskalert.push.RiskAlertPushService riskAlertPushService;
+
         @InjectMocks
         private RiskAlertAppServiceImpl riskAlertAppService;
 
@@ -545,16 +551,18 @@ class RiskAlertAppServiceTest {
                 List<RiskAlertMergeDTO.RiskAlertDetailDTO> details1 = Arrays
                                 .asList(new RiskAlertMergeDTO.RiskAlertDetailDTO(1L, BigDecimal.valueOf(5.0),
                                                 BigDecimal.valueOf(11.5), LocalDateTime.now(), null));
-                RiskAlertMergeDTO merged1 = new RiskAlertMergeDTO(1L, "000001", "STOCK", "平安银行", LocalDate.now(), 2,
-                                BigDecimal.valueOf(5.5), BigDecimal.valueOf(5.5), BigDecimal.valueOf(11.5),
-                                BigDecimal.valueOf(10.95), false, LocalDateTime.now(), details1);
+                RiskAlertMergeDTO merged1 = new RiskAlertMergeDTO(1L, "000001", "STOCK", "平安银行", LocalDate.now(),
+                                "ACTIVE", 2, BigDecimal.valueOf(5.5), BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.5),
+                                BigDecimal.valueOf(11.5), BigDecimal.valueOf(10.95), false, LocalDateTime.now(),
+                                details1);
 
                 List<RiskAlertMergeDTO.RiskAlertDetailDTO> details2 = Arrays
                                 .asList(new RiskAlertMergeDTO.RiskAlertDetailDTO(2L, BigDecimal.valueOf(3.0),
                                                 BigDecimal.valueOf(10.3), LocalDateTime.now(), null));
-                RiskAlertMergeDTO merged2 = new RiskAlertMergeDTO(2L, "000002", "STOCK", "平安银行2", LocalDate.now(), 1,
-                                BigDecimal.valueOf(3.0), BigDecimal.valueOf(3.0), BigDecimal.valueOf(10.3),
-                                BigDecimal.valueOf(10.0), false, LocalDateTime.now(), details2);
+                RiskAlertMergeDTO merged2 = new RiskAlertMergeDTO(2L, "000002", "STOCK", "平安银行2", LocalDate.now(),
+                                "ACTIVE", 1, BigDecimal.valueOf(3.0), BigDecimal.valueOf(2.0), BigDecimal.valueOf(3.0),
+                                BigDecimal.valueOf(10.3), BigDecimal.valueOf(10.0), false, LocalDateTime.now(),
+                                details2);
 
                 when(riskAlertQueryService.getMergedRiskAlerts(eq(1L), any(), any(Integer.class)))
                                 .thenReturn(Arrays.asList(merged1, merged2));
@@ -575,9 +583,10 @@ class RiskAlertAppServiceTest {
                                                 BigDecimal.valueOf(11.5), LocalDateTime.now(), null),
                                 new RiskAlertMergeDTO.RiskAlertDetailDTO(2L, BigDecimal.valueOf(5.5),
                                                 BigDecimal.valueOf(11.5), LocalDateTime.now(), null));
-                RiskAlertMergeDTO merged = new RiskAlertMergeDTO(1L, "000001", "STOCK", "平安银行", LocalDate.now(), 2,
-                                BigDecimal.valueOf(5.5), BigDecimal.valueOf(5.5), BigDecimal.valueOf(11.5),
-                                BigDecimal.valueOf(10.95), false, LocalDateTime.now(), details);
+                RiskAlertMergeDTO merged = new RiskAlertMergeDTO(1L, "000001", "STOCK", "平安银行", LocalDate.now(),
+                                "ACTIVE", 2, BigDecimal.valueOf(5.5), BigDecimal.valueOf(4.5), BigDecimal.valueOf(5.5),
+                                BigDecimal.valueOf(11.5), BigDecimal.valueOf(10.95), false, LocalDateTime.now(),
+                                details);
 
                 when(riskAlertQueryService.getMergedRiskAlerts(eq(1L), any(), any(Integer.class)))
                                 .thenReturn(Arrays.asList(merged));

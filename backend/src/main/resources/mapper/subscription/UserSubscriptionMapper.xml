@@ -8,6 +8,7 @@
         <result column="symbol" property="symbol"/>
         <result column="symbol_type" property="symbolType"/>
         <result column="symbol_name" property="symbolName"/>
+        <result column="alert_type" property="alertType"/>
         <result column="target_change_percent" property="targetChangePercent"/>
         <result column="is_active" property="isActive"/>
         <result column="last_triggered" property="lastTriggered"/>
@@ -58,13 +59,13 @@
 
     <insert id="insertBatch" parameterType="java.util.List">
         INSERT INTO user_subscription (
-            user_id, symbol, symbol_type, symbol_name,
+            user_id, symbol, symbol_type, symbol_name, alert_type,
             target_change_percent, is_active, description,
             created_at, updated_at
         ) VALUES
         <foreach collection="list" item="item" separator=",">
             (
-                #{item.userId}, #{item.symbol}, #{item.symbolType}, #{item.symbolName},
+                #{item.userId}, #{item.symbol}, #{item.symbolType}, #{item.symbolName}, #{item.alertType},
                 #{item.targetChangePercent}, #{item.isActive}, #{item.description},
                 NOW(), NOW()
             )

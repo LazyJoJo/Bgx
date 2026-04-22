@@ -1,66 +1,118 @@
 import { RiskAlert } from '@/types'
 import {
   CheckCircleOutlined,
-  FundOutlined,
-  StockOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
+import RiskAlertCard from '@components/risk-alerts/RiskAlertCard'
+import RiskAlertEmpty from '@components/risk-alerts/RiskAlertEmpty'
 import { riskAlertsApi } from '@services/api/riskAlerts'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
 import {
   fetchRiskAlerts,
-  fetchRiskAlertUnreadCount,
   markRiskAlertsAsRead,
-  resetList,
+  resetList
 } from '@store/slices/riskAlertsSlice'
-import { Badge, Button, Collapse, Empty, Space, Spin, Tag } from 'antd'
-import { useCallback, useEffect } from 'react'
+import { Badge, Button, Empty, message, Space, Spin } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
-const { Panel } = Collapse
-
+/**
+ * RiskAlertList - 风险提醒主页面
+ * 
+ * 功能：
+ * - 按日期分组显示风险提醒
+ * - 今天显示"暂时无风险"提示
+ * - 使用 RiskAlertCard 显示每条提醒
+ */
 const RiskAlertList = () => {
   const dispatch = useAppDispatch()
   const { list, unreadCount, loading, hasMore, cursor } = useAppSelector(
     (state) => state.riskAlerts
   )
 
-  // DEBUG: 测试 SSE 功能 - 调用后端接口触发风险检测
-  const handleTestSSE = async () => {
-    console.log('[DEBUG] Triggering risk alert check via API')
+  // 暂时无风险提示的显示状态
+  const [showEmptyPrompt, setShowEmptyPrompt] = useState(false)
+  const [checkingEmpty, setCheckingEmpty] = useState(false)
+
+  // 检查今天是否有风险
+  // NOTE: list.length removed from dependencies to prevent infinite loop
+  // The list.length fallback is not critical - if API fails, we just don't show empty prompt
+  const checkTodayHasAlerts = useCallback(async (userId: number) => {
+    setCheckingEmpty(true)
     try {
-      const response = await riskAlertsApi.checkRiskAlerts()
-      console.log('[DEBUG] Risk check API response:', response)
-      // 如果需要，可以刷新列表
-      // dispatch(fetchRiskAlerts({}))
+      const response = await riskAlertsApi.getTodaySummary(userId)
+      if (response.success && response.data) {
+        setShowEmptyPrompt(!response.data.hasAlerts)
+      }
     } catch (error) {
-      console.error('[DEBUG] Risk check API error:', error)
+      // Fallback: if API fails, don't show empty prompt (safer approach)
+      setShowEmptyPrompt(false)
+    } finally {
+      setCheckingEmpty(false)
     }
-  }
+  }, [])
 
   // 按日期分组
-  const groupedByDate = list.reduce((acc, alert) => {
-    const date = alert.date
-    if (!acc[date]) {
-      acc[date] = []
-    }
-    acc[date].push(alert)
-    return acc
-  }, {} as Record<string, RiskAlert[]>)
+  const groupedByDate = useMemo(() => {
+    return list.reduce((acc, alert) => {
+      const date = alert.date
+      if (!acc[date]) {
+        acc[date] = []
+      }
+      acc[date].push(alert)
+      return acc
+    }, {} as Record<string, RiskAlert[]>)
+  }, [list])
 
   // 日期排序（倒序）
-  const sortedDates = Object.keys(groupedByDate).sort((a, b) =>
-    b.localeCompare(a)
-  )
+  const sortedDates = useMemo(() => {
+    return Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
+  }, [groupedByDate])
+
+  // 统一日期格式化为 YYYY-MM-DD
+  const formatDateToString = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // 获取今天的日期字符串
+  const todayStr = useMemo(() => {
+    return formatDateToString(new Date())
+  }, [])
+
+  // 格式化日期显示
+  // 只有当天显示"今天"，其他日期都显示具体日期
+  const formatDateDisplay = (dateStr: string): string => {
+    if (dateStr === todayStr) return '今天'
+    return dateStr
+  }
 
   useEffect(() => {
     // 初始加载
     dispatch(resetList())
     dispatch(fetchRiskAlerts({}))
-    dispatch(fetchRiskAlertUnreadCount())
+    // 不再调用 fetchRiskAlertUnreadCount，因为 SSE 连接建立后会推送当前的未读数
+    // 如果 SSE 未连接或推送失败，unread_count 会保持为 0，用户可以刷新页面重新获取
+    const userId = Number(localStorage.getItem('userId'))
+    if (userId) {
+      checkTodayHasAlerts(userId)
+    }
+
     return () => {
       dispatch(resetList())
     }
-  }, [dispatch])
+  }, [dispatch, checkTodayHasAlerts])
+
+  // 检查是否应该显示空提示（今天没有任何风险）
+  const shouldShowEmpty = useMemo(() => {
+    // 只有今天且没有数据时才显示"暂时无风险"
+    const todayHasData = sortedDates.includes(todayStr)
+    if (!todayHasData && !checkingEmpty) {
+      return showEmptyPrompt
+    }
+    return false
+  }, [sortedDates, todayStr, showEmptyPrompt, checkingEmpty])
 
   const handleLoadMore = useCallback(() => {
     if (!loading && hasMore && cursor) {
@@ -72,170 +124,105 @@ const RiskAlertList = () => {
     dispatch(markRiskAlertsAsRead())
   }
 
-  const renderAlertCard = (alert: RiskAlert) => {
-    const icon = alert.symbolType === 'STOCK' ? <StockOutlined /> : <FundOutlined />
-    const typeColor = alert.symbolType === 'STOCK' ? 'blue' : 'green'
-    const changeColor =
-      alert.latestChangePercent > 0
-        ? 'red'
-        : alert.latestChangePercent < 0
-          ? 'green'
-          : 'default'
+  // 手动触发风险检测
+  const [checking, setChecking] = useState(false)
 
-    return (
-      <div
-        key={`${alert.symbol}_${alert.date}`}
-        style={{
-          padding: '12px 16px',
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Tag icon={icon} color={typeColor}>
-            {alert.symbolType === 'STOCK' ? '股票' : '基金'}
-          </Tag>
-          <div>
-            <div style={{ fontWeight: 500 }}>
-              {alert.symbolName} ({alert.symbol})
-            </div>
-            <div style={{ fontSize: '12px', color: '#888' }}>
-              今日已触发 {alert.triggerCount} 次风险提醒
-            </div>
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: changeColor }}>
-            {alert.latestChangePercent != null
-              ? `${alert.latestChangePercent > 0 ? '+' : ''}${alert.latestChangePercent.toFixed(2)}%`
-              : '-'}
-          </div>
-          <div style={{ fontSize: '12px', color: '#888' }}>
-            最大波动: {alert.maxChangePercent != null
-              ? `${alert.maxChangePercent > 0 ? '+' : ''}${alert.maxChangePercent.toFixed(2)}%`
-              : '-'}
-          </div>
-        </div>
-      </div>
-    )
+  // 非当天日期的展开状态 - 默认只有今天展开，其他日期折叠
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set([todayStr]))
+  const handleManualCheck = async () => {
+    setChecking(true)
+    try {
+      const response = await riskAlertsApi.checkRiskAlerts()
+      if (response.success) {
+        message.success('风险检测完成，正在刷新...')
+        // 检测完成后刷新列表（不单独获取未读数，因为 SSE 会推送更新）
+        dispatch(resetList())
+        dispatch(fetchRiskAlerts({}))
+        // 不再单独调用 fetchRiskAlertUnreadCount，避免覆盖 SSE 的实时更新
+        // SSE 会在风险检测过程中推送 new_alert 和 unread_count_change 事件
+        const userId = Number(localStorage.getItem('userId'))
+        if (userId) {
+          checkTodayHasAlerts(userId)
+        }
+      }
+    } catch (error) {
+      console.error('[RiskAlertList] Manual check failed:', error)
+      message.error('风险检测失败')
+    } finally {
+      setChecking(false)
+    }
   }
 
-  const renderDetails = (alert: RiskAlert) => {
+  // 切换日期展开状态
+  const toggleDateExpanded = (date: string) => {
+    setExpandedDates((prev) => {
+      const next = new Set(prev)
+      if (next.has(date)) {
+        next.delete(date)
+      } else {
+        next.add(date)
+      }
+      return next
+    })
+  }
+
+  const renderDateSection = (date: string, alerts: RiskAlert[]) => {
+    const unreadAlerts = alerts.filter((a) => !a.isRead)
+    const displayDate = formatDateDisplay(date)
+    const isToday = date === todayStr
+    // 默认折叠（不在expandedDates中），只有今天默认展开
+    const isExpanded = isToday || expandedDates.has(date)
+
     return (
-      <div style={{ padding: '8px 16px', background: '#fafafa' }}>
+      <div key={date} style={{ marginBottom: '16px' }}>
+        {/* 日期标题 */}
         <div
           style={{
-            fontSize: '12px',
-            color: '#666',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '8px 0',
             marginBottom: '8px',
+            cursor: isToday ? 'default' : 'pointer'
           }}
+          onClick={() => !isToday && toggleDateExpanded(date)}
         >
-          触发明细 ({alert.details.length} 条)
+          <Space size="middle">
+            {!isToday && (
+              <span style={{ fontSize: '12px', color: '#888' }}>
+                {isExpanded ? '▼' : '▶'}
+              </span>
+            )}
+            <span style={{
+              fontWeight: 600,
+              fontSize: '15px',
+              color: '#333'
+            }}>
+              {displayDate}
+            </span>
+            {unreadAlerts.length > 0 && (
+              <Badge count={unreadAlerts.length} size="small" />
+            )}
+          </Space>
+          <span style={{ fontSize: '12px', color: '#888' }}>
+            {alerts.length} 条提醒
+          </span>
         </div>
-        {alert.details.map((detail, index) => (
-          <div
-            key={detail.id || index}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              padding: '6px 0',
-              borderBottom:
-                index < alert.details.length - 1
-                  ? '1px dashed #e8e8e8'
-                  : 'none',
-              fontSize: '13px',
-            }}
-          >
-            <span style={{ color: '#888' }}>
-              {new Date(detail.triggeredAt).toLocaleString('zh-CN')}
-            </span>
-            <span
-              style={{
-                color:
-                  detail.changePercent > 0
-                    ? 'red'
-                    : detail.changePercent < 0
-                      ? 'green'
-                      : '#666',
-                fontWeight: 500,
-              }}
-            >
-              {detail.changePercent != null
-                ? `${detail.changePercent > 0 ? '+' : ''}${detail.changePercent.toFixed(2)}%`
-                : '-'}
-            </span>
-          </div>
+
+        {/* 风险卡片列表 - 只有展开时才显示 */}
+        {isExpanded && alerts.map((alert) => (
+          <RiskAlertCard key={`${alert.symbol}_${alert.date}`} alert={alert} />
         ))}
       </div>
     )
   }
 
-  const renderDateSection = (date: string, alerts: RiskAlert[]) => {
-    const unreadAlerts = alerts.filter((a) => !a.isRead)
-    const displayDate = date || '未知日期'
-    const todayStr = new Date().toISOString().split('T')[0]
-    return (
-      <Collapse
-        key={date || 'unknown'}
-        ghost
-        style={{ marginBottom: '8px' }}
-        expandIconPosition="end"
-      >
-        <Panel
-          key={date || 'unknown'}
-          header={
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                width: '100%',
-                paddingRight: '8px',
-              }}
-            >
-              <Space>
-                <span style={{ fontWeight: 500 }}>
-                  {displayDate === todayStr
-                    ? '今天'
-                    : displayDate}
-                </span>
-                <Badge count={unreadAlerts.length} size="small" />
-              </Space>
-              <span style={{ fontSize: '12px', color: '#888' }}>
-                {alerts.length} 条提醒
-              </span>
-            </div>
-          }
-        >
-          {alerts.map((alert) => (
-            <div key={`${alert.symbol}_${alert.date}`}>
-              {renderAlertCard(alert)}
-              <Collapse ghost>
-                <Panel
-                  key="details"
-                  header={
-                    <span style={{ fontSize: '12px', color: '#1890ff' }}>
-                      查看详情 ({alert.details.length} 条明细)
-                    </span>
-                  }
-                >
-                  {renderDetails(alert)}
-                </Panel>
-              </Collapse>
-            </div>
-          ))}
-        </Panel>
-      </Collapse>
-    )
-  }
-
   return (
     <div style={{ padding: '0' }}>
+      {/* 页面标题 */}
       <div
         style={{
-          marginBottom: '16px',
+          marginBottom: '20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -247,40 +234,47 @@ const RiskAlertList = () => {
           </h2>
           <Badge count={unreadCount} size="small" />
         </Space>
-        <Space>
+        <Space size="middle">
           <Button
-            type="primary"
             icon={<CheckCircleOutlined />}
             onClick={handleMarkAllRead}
             disabled={unreadCount === 0}
           >
             全部已读
           </Button>
-          {/* DEBUG: 测试 SSE 功能 */}
           <Button
-            danger
-            onClick={handleTestSSE}
+            type="primary"
+            icon={checking ? <Spin size="small" /> : <WarningOutlined />}
+            onClick={handleManualCheck}
+            disabled={checking}
           >
-            [测试SSE]
+            {checking ? '检测中...' : '手动检测'}
           </Button>
         </Space>
       </div>
 
+      {/* 加载状态 */}
       {loading && list.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <Spin size="large" />
         </div>
-      ) : list.length === 0 ? (
+      ) : shouldShowEmpty ? (
+        /* 暂时无风险提示 */
+        <RiskAlertEmpty />
+      ) : list.length === 0 && sortedDates.length === 0 ? (
+        /* 无数据 */
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description="暂无风险提醒"
         />
       ) : (
+        /* 风险提醒列表 */
         <div>
           {sortedDates.map((date) =>
             renderDateSection(date, groupedByDate[date])
           )}
 
+          {/* 加载更多 */}
           {hasMore && (
             <div style={{ textAlign: 'center', padding: '16px' }}>
               <Button onClick={handleLoadMore} loading={loading}>

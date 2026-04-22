@@ -1,7 +1,7 @@
 import type { RiskAlert } from '@/types'
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import { riskAlertsApi } from '@services/api/riskAlerts'
-import type { NewAlertPayload, RiskClearedPayload } from '@services/sse/riskAlertSSE'
+import type { AlertClearedPayload, NewAlertPayload } from '@services/sse/riskAlertSSE'
 
 // Re-export for convenience
 export type { NewAlertPayload } from '@services/sse/riskAlertSSE'
@@ -84,6 +84,23 @@ export const markRiskAlertsAsRead = createAsyncThunk(
   }
 )
 
+// 同步断线期间错过的提醒
+export const syncMissedAlerts = createAsyncThunk(
+  'riskAlerts/syncMissedAlerts',
+  async (_, { rejectWithValue }) => {
+    try {
+      const userId = Number(localStorage.getItem('userId')) || 1
+      const response = await riskAlertsApi.getRiskAlerts(userId, undefined, 50)
+      if (response.success) {
+        return response.data
+      }
+      return rejectWithValue(response.message || 'Sync missed alerts failed')
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Sync missed alerts failed')
+    }
+  }
+)
+
 const riskAlertsSlice = createSlice({
   name: 'riskAlerts',
   initialState,
@@ -98,7 +115,6 @@ const riskAlertsSlice = createSlice({
     },
     // SSE 推送：接收实时新提醒
     receiveRealtimeAlert: (state, action: PayloadAction<NewAlertPayload>) => {
-      console.log('[riskAlertsSlice] receiveRealtimeAlert called with:', action.payload)
       const newAlert = action.payload
 
       // Fallback date: use latestTriggeredAt date if date is missing
@@ -109,7 +125,6 @@ const riskAlertsSlice = createSlice({
       // 检查是否已存在该提醒（按 symbol + date 去重）
       const key = `${newAlert.symbol}_${dateFallback}`
       const existingIndex = state.list.findIndex((a) => `${a.symbol}_${a.date}` === key)
-      console.log('[riskAlertsSlice] Deduplication check - key:', key, ', existingIndex:', existingIndex)
 
       if (existingIndex >= 0) {
         // 已存在则更新
@@ -117,9 +132,10 @@ const riskAlertsSlice = createSlice({
           ...state.list[existingIndex],
           ...newAlert,
           date: dateFallback,
+          status: newAlert.status || 'ACTIVE',
+          minChangePercent: newAlert.minChangePercent ?? state.list[existingIndex].minChangePercent,
           isRead: false // 重置为未读
         }
-        console.log('[riskAlertsSlice] Updated existing alert at index:', existingIndex)
       } else {
         // 新增到列表头部（使用后端传来的真实 ID）
         const newRiskAlert: RiskAlert = {
@@ -128,41 +144,41 @@ const riskAlertsSlice = createSlice({
           symbolName: newAlert.symbolName,
           symbolType: newAlert.symbolType,
           date: dateFallback,
+          status: newAlert.status || 'ACTIVE',
           latestChangePercent: newAlert.latestChangePercent,
           maxChangePercent: newAlert.maxChangePercent,
+          minChangePercent: newAlert.minChangePercent ?? newAlert.latestChangePercent,
           currentPrice: newAlert.currentPrice,
           yesterdayClose: newAlert.yesterdayClose,
           latestTriggeredAt: newAlert.latestTriggeredAt,
-          triggerCount: newAlert.triggerCount,
           isRead: false,
           details: newAlert.details || []
         }
         state.list = [newRiskAlert, ...state.list]
-        console.log('[riskAlertsSlice] Added new alert, total list length:', state.list.length)
       }
     },
-    // SSE 推送：接收风险解除事件 - 从列表中移除已解除的风险提醒
-    receiveRiskCleared: (state, action: PayloadAction<RiskClearedPayload>) => {
+    // SSE 推送：接收风险解除事件 - 更新状态为 CLEARED，不从列表移除
+    // NOTE: unreadCount 由后端通过 pushUnreadCountChange 推送的 unread_count_change 事件更新
+    // 因为后端在 alert_cleared 事件后会发送 pushUnreadCountChange，所以这里不需要重新计算
+    receiveAlertCleared: (state, action: PayloadAction<AlertClearedPayload>) => {
       const cleared = action.payload
-      console.log('[riskAlertsSlice] receiveRiskCleared:', cleared)
 
-      // 从列表中移除该 symbol 的风险提醒（通过 symbol + date 匹配）
-      state.list = state.list.filter(item => {
-        // 检查是否是同一 symbol 的风险提醒
-        const symbolMatch = item.symbol === cleared.symbol &&
-          item.symbolType === cleared.symbolType
-        // 日期匹配（使用触发日期）
-        const dateMatch = item.date === cleared.date
+      // 查找并更新该 symbol + date 的风险提醒状态为 CLEARED
+      const key = `${cleared.symbol}_${cleared.date}`
+      const existingIndex = state.list.findIndex((a) => `${a.symbol}_${a.date}` === key)
 
-        if (symbolMatch && dateMatch) {
-          console.log('[riskAlertsSlice] Removing cleared alert:', item.symbol, item.date)
+      if (existingIndex >= 0) {
+        const newDetails = cleared.details || state.list[existingIndex].details || []
+        state.list[existingIndex] = {
+          ...state.list[existingIndex],
+          status: 'CLEARED',
+          latestChangePercent: cleared.currentChangePercent,
+          currentPrice: cleared.currentPrice,
+          latestTriggeredAt: cleared.latestTriggeredAt,
+          maxChangePercent: cleared.maxChangePercent,
+          minChangePercent: cleared.minChangePercent,
+          details: newDetails,
         }
-        return !(symbolMatch && dateMatch)
-      })
-
-      // 减少未读数（如果之前有未读）
-      if (state.unreadCount && state.unreadCount > 0) {
-        state.unreadCount = state.unreadCount - 1
       }
     },
     // SSE 推送：更新未读数
@@ -213,8 +229,29 @@ const riskAlertsSlice = createSlice({
         // 标记所有为已读
         state.list = state.list.map((alert) => ({ ...alert, isRead: true }))
       })
+      // syncMissedAlerts
+      .addCase(syncMissedAlerts.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(syncMissedAlerts.fulfilled, (state, action) => {
+        state.loading = false
+        const newAlerts = action.payload
+        // Prepend missed alerts to the head of the list (same behavior as realtime SSE)
+        const existingIds = new Set(state.list.map((a) => `${a.symbol}_${a.date}`))
+        const filtered = newAlerts.filter(
+          (a) => !existingIds.has(`${a.symbol}_${a.date}`)
+        )
+        state.list = [...filtered, ...state.list]
+        // Recalculate unreadCount based on merged list
+        state.unreadCount = state.list.filter((a) => !a.isRead).length
+      })
+      .addCase(syncMissedAlerts.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload as string
+      })
   },
 })
 
-export const { clearError, resetList, receiveRealtimeAlert, receiveRiskCleared, updateUnreadCount } = riskAlertsSlice.actions
+export const { clearError, resetList, receiveRealtimeAlert, receiveAlertCleared, updateUnreadCount } = riskAlertsSlice.actions
 export default riskAlertsSlice.reducer

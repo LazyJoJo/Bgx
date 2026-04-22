@@ -43,7 +43,8 @@ const Header = ({ collapsed, onCollapse }: HeaderProps) => {
     autoConnect: true
   })
 
-  // 组件挂载时获取未读计数（初始化）
+  // 组件挂载时初始化未读数（一次性）
+  // SSE 推送会覆盖此值，所以这是安全的
   useEffect(() => {
     dispatch(fetchRiskAlertUnreadCount())
   }, [dispatch])

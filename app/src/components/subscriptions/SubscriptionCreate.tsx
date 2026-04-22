@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Modal, Form, Select, message, Spin, Tag, Typography, Space, Alert, InputNumber, Switch, Divider, Button } from 'antd'
-import { RocketOutlined, SettingOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, ExclamationCircleOutlined, RocketOutlined, SettingOutlined } from '@ant-design/icons'
 import { stocksApi } from '@services/api/stocks'
-import { subscriptionsApi, SymbolType, AlertType, Subscription } from '@services/api/subscriptions'
+import { Subscription, subscriptionsApi, SymbolType } from '@services/api/subscriptions'
+import { Alert, Button, Divider, Form, InputNumber, message, Modal, Select, Space, Spin, Tag, Typography } from 'antd'
+import { useCallback, useEffect, useState } from 'react'
 import './SubscriptionCreate.css'
 
 const { Option } = Select
@@ -130,6 +130,7 @@ const SubscriptionCreate: React.FC<SubscriptionCreateProps> = ({ visible, onClos
         symbols,
         alertType: 'PERCENTAGE_CHANGE',
         targetChangePercent: 1.0,
+        isActive: true,
       })
 
       if (response.code === 200 || response.success) {
@@ -179,6 +180,7 @@ const SubscriptionCreate: React.FC<SubscriptionCreateProps> = ({ visible, onClos
         targetPrice: values.targetPrice,
         targetChangePercent: values.targetChangePercent,
         remark: values.remark,
+        isActive: true,
       })
 
       if (response.code === 200 || response.success) {

@@ -15,10 +15,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.stock.fund.application.query.RiskAlertQueryService;
 import com.stock.fund.application.service.riskalert.RiskAlertAppService;
 import com.stock.fund.application.service.riskalert.dto.BatchSubscribeRequest;
+import com.stock.fund.application.service.riskalert.dto.RiskAlertDetailDTO;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertMergeDTO;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertSummaryDTO;
+import com.stock.fund.application.service.riskalert.dto.RiskAlertTodaySummaryDTO;
 import com.stock.fund.application.service.subscription.SubscriptionAppService;
 import com.stock.fund.application.service.subscription.dto.BatchCreateSubscriptionRequest;
 import com.stock.fund.application.service.subscription.dto.BatchCreateSubscriptionResponse;
@@ -34,6 +37,9 @@ public class RiskAlertController {
 
     @Autowired
     private RiskAlertAppService riskAlertAppService;
+
+    @Autowired
+    private RiskAlertQueryService riskAlertQueryService;
 
     @Autowired
     private SubscriptionAppService subscriptionAppService;
@@ -95,6 +101,25 @@ public class RiskAlertController {
     }
 
     /**
+     * 获取当日汇总（用于判断"暂时无风险"）
+     */
+    @GetMapping("/user/{userId}/today-summary")
+    public ApiResponse<List<RiskAlertTodaySummaryDTO>> getTodaySummary(@PathVariable Long userId) {
+        List<RiskAlertTodaySummaryDTO> summaries = riskAlertQueryService.getTodaySummary(userId);
+        return ApiResponse.success("获取当日汇总成功", summaries);
+    }
+
+    /**
+     * 获取风险明细列表
+     */
+    @GetMapping("/user/{userId}/details/{alertId}")
+    public ApiResponse<List<RiskAlertDetailDTO>> getAlertDetails(@PathVariable Long userId,
+            @PathVariable Long alertId) {
+        List<RiskAlertDetailDTO> details = riskAlertQueryService.getAlertDetailList(alertId);
+        return ApiResponse.success("获取风险明细成功", details);
+    }
+
+    /**
      * 手动触发风险提醒检测（用于测试）
      */
     @PostMapping("/check")
@@ -130,7 +155,9 @@ public class RiskAlertController {
         createRequest.setSymbolType(request.getSymbolType());
         createRequest.setSymbols(request.getSymbols());
         createRequest.setTargetChangePercent(BigDecimal.valueOf(targetChangePercent));
-        createRequest.setEnabled(true);
+        // 使用 request.getIsActive() 的值，如果为 null 则默认为 true
+        Boolean isActive = request.getIsActive();
+        createRequest.setIsActive(isActive != null ? isActive : true);
 
         BatchCreateSubscriptionResponse response = subscriptionAppService.batchCreateSubscription(createRequest);
         return ApiResponse.success("批量订阅完成", response);

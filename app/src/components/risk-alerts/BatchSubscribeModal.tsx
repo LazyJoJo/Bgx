@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Modal, Form, Select, message, Spin, Tag, Typography, Space, Alert } from 'antd'
-import { stocksApi } from '@services/api/stocks'
 import apiClient from '@services/api/client'
+import { stocksApi } from '@services/api/stocks'
+import { Alert, Form, message, Modal, Select, Space, Spin, Tag, Typography } from 'antd'
+import { useCallback, useEffect, useState } from 'react'
 
 const { Option } = Select
 const { Text } = Typography
@@ -78,7 +78,7 @@ const BatchSubscribeModal: React.FC<BatchSubscribeModalProps> = ({ visible, onCl
     form.setFieldsValue({ symbols: [] })
     setSelectedSymbols([])
     setSearchResults([])
-    
+
     // 重新加载对应类型的标的
     searchSymbols('', value, true)
   }
@@ -98,7 +98,7 @@ const BatchSubscribeModal: React.FC<BatchSubscribeModalProps> = ({ visible, onCl
         symbols,
         alertType: 'PERCENTAGE_CHANGE',
         targetChangePercent: 1.0,
-        status: true
+        isActive: true
       })
 
       // apiClient拦截器已返回response.data，结构为：{code, message, data}
@@ -162,7 +162,7 @@ const BatchSubscribeModal: React.FC<BatchSubscribeModalProps> = ({ visible, onCl
           label="标的类型"
           rules={[{ required: true, message: '请选择标的类型' }]}
         >
-          <Select 
+          <Select
             placeholder="请选择标的类型"
             onChange={handleSymbolTypeChange}
           >

@@ -5,9 +5,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { riskAlertSSEClient, type NewAlertPayload, type RiskClearedPayload, type UnreadCountChange } from '../services/sse/riskAlertSSE'
+import { riskAlertSSEClient, type AlertClearedPayload, type NewAlertPayload, type UnreadCountChange } from '../services/sse/riskAlertSSE'
 import { useAppDispatch } from '../store/hooks'
-import { receiveRealtimeAlert, receiveRiskCleared, updateUnreadCount } from '../store/slices/riskAlertsSlice'
+import { receiveAlertCleared, receiveRealtimeAlert, syncMissedAlerts, updateUnreadCount } from '../store/slices/riskAlertsSlice'
 
 export interface UseRiskAlertSSEOptions {
     /** 是否启用 SSE */
@@ -18,16 +18,16 @@ export interface UseRiskAlertSSEOptions {
     autoConnect?: boolean
 }
 
-export interface UseRiskAlertSSIReturn {
-    /** 是否已连接 */
+export interface UseRiskAlertSSEReturn {
+    /** Whether SSE is connected */
     isConnected: boolean
-    /** 连接状态 */
+    /** Connection status */
     status: 'connecting' | 'connected' | 'disconnected' | 'error'
-    /** 错误信息 */
+    /** Error message */
     error: string | null
-    /** 手动连接 */
+    /** Manual connect */
     connect: () => void
-    /** 手动断开 */
+    /** Manual disconnect */
     disconnect: () => void
 }
 
@@ -40,7 +40,7 @@ export function useRiskAlertSSE({
     enabled = true,
     userId,
     autoConnect = true
-}: UseRiskAlertSSEOptions): UseRiskAlertSSIReturn {
+}: UseRiskAlertSSEOptions): UseRiskAlertSSEReturn {
     const dispatch = useAppDispatch()
     const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
     const [error, setError] = useState<string | null>(null)
@@ -48,7 +48,6 @@ export function useRiskAlertSSE({
 
     // 处理新风险提醒事件
     const handleNewAlert = useCallback((data: NewAlertPayload) => {
-        console.log('[useRiskAlertSSE] Received new_alert, dispatching to Redux:', data)
         dispatch(receiveRealtimeAlert(data))
     }, [dispatch])
 
@@ -61,9 +60,8 @@ export function useRiskAlertSSE({
     }, [dispatch])
 
     // 处理风险解除事件
-    const handleRiskCleared = useCallback((data: RiskClearedPayload) => {
-        console.log('[useRiskAlertSSE] Received risk_cleared, dispatching to Redux:', data)
-        dispatch(receiveRiskCleared(data))
+    const handleAlertCleared = useCallback((data: AlertClearedPayload) => {
+        dispatch(receiveAlertCleared(data))
     }, [dispatch])
 
     // 初始化 SSE 连接
@@ -81,8 +79,8 @@ export function useRiskAlertSSE({
             handleUnreadCountChange(event.data as UnreadCountChange)
         })
 
-        const unsubRiskCleared = riskAlertSSEClient.on('risk_cleared', (event) => {
-            handleRiskCleared(event.data as RiskClearedPayload)
+        const unsubAlertCleared = riskAlertSSEClient.on('alert_cleared', (event) => {
+            handleAlertCleared(event.data as AlertClearedPayload)
         })
 
         const unsubInit = riskAlertSSEClient.on('init', () => {
@@ -98,6 +96,26 @@ export function useRiskAlertSSE({
             isConnectedRef.current = false
         })
 
+        // Listen for reconnected event - sync missed alerts after reconnection
+        // NOTE: dispatch is from Redux toolkit and is a stable reference.
+        // syncMissedAlerts is a thunk (async action), not a callback function,
+        // so it doesn't need to be in the dependency array.
+        // It is a stable reference that won't change between renders.
+        const unsubReconnected = riskAlertSSEClient.on('reconnected', () => {
+            setStatus('connected')
+            setError(null)
+            isConnectedRef.current = true
+            // Reconnected after disconnection - sync missed alerts
+            // Only sync if userId is valid to avoid unnecessary API calls
+            // NOTE: We no longer call fetchRiskAlertUnreadCount() here because:
+            // 1. SSE will push unread_count_change events after reconnection, providing the correct count
+            // 2. fetchRiskAlertUnreadCount() may return stale data if backend hasn't committed new alerts
+            // If the user sees stale data after reconnection, they can navigate to refresh
+            if (userId) {
+                dispatch(syncMissedAlerts())
+            }
+        })
+
         // 自动连接
         if (autoConnect) {
             setStatus('connecting')
@@ -108,9 +126,10 @@ export function useRiskAlertSSE({
             // 取消订阅
             unsubNewAlert()
             unsubUnreadChange()
-            unsubRiskCleared()
+            unsubAlertCleared()
             unsubInit()
             unsubError()
+            unsubReconnected()
 
             // 断开连接
             if (isConnectedRef.current) {
@@ -118,7 +137,7 @@ export function useRiskAlertSSE({
                 isConnectedRef.current = false
             }
         }
-    }, [enabled, userId, autoConnect, handleNewAlert, handleUnreadCountChange, handleRiskCleared])
+    }, [enabled, userId, autoConnect, handleNewAlert, handleUnreadCountChange, handleAlertCleared, dispatch])
 
     // 手动连接
     const connect = useCallback(() => {

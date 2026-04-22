@@ -1,7 +1,8 @@
 package com.stock.fund.application.service.subscription.dto;
 
-import lombok.Data;
 import java.math.BigDecimal;
+
+import lombok.Data;
 
 /**
  * 创建订阅请求
@@ -12,6 +13,7 @@ public class CreateSubscriptionRequest {
     private String symbol;
     private String symbolType;
     private String symbolName;
+    private String alertType; // PERCENT / AMOUNT - 监控类型
     private BigDecimal targetChangePercent;
-    private Boolean enabled;
+    private Boolean isActive;
 }

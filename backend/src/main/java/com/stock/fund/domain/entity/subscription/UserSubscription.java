@@ -3,6 +3,7 @@ package com.stock.fund.domain.entity.subscription;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.stock.fund.domain.entity.AggregateRoot;
 
 import lombok.Data;
@@ -18,6 +19,7 @@ public class UserSubscription extends AggregateRoot<Long> {
     private String symbol; // 标的代码
     private String symbolType; // 标的类型：STOCK/FUND
     private String symbolName; // 标的名称
+    private String alertType; // 监控类型：PERCENT（涨跌幅监控）/ AMOUNT（增减金额监控）
     private BigDecimal targetChangePercent; // 目标涨跌幅百分比
     private Boolean isActive; // 是否激活
     private LocalDateTime lastTriggered; // 最后触发时间
@@ -51,5 +53,14 @@ public class UserSubscription extends AggregateRoot<Long> {
     public void markTriggered() {
         this.lastTriggered = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 获取订阅状态字符串，用于 API 响应序列化 前端 Subscription.status 期望 'ACTIVE' | 'INACTIVE' |
+     * 'TRIGGERED'
+     */
+    @JsonProperty("status")
+    public String getStatus() {
+        return Boolean.TRUE.equals(this.isActive) ? "ACTIVE" : "INACTIVE";
     }
 }

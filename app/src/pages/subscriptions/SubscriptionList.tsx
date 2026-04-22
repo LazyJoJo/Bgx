@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react'
-import { Table, Tag, Button, Space, Select, Input, Form, Row, Col, message, Popconfirm, Typography, Card, Badge } from 'antd'
-import { PlusOutlined, DeleteOutlined, PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, EditOutlined } from '@ant-design/icons'
-import { useAppDispatch, useAppSelector } from '@store/hooks'
-import {
-  fetchSubscriptions,
-  batchDeleteSubscriptions,
-  batchActivateSubscriptions,
-  batchDeactivateSubscriptions,
-  setFilters,
-  clearFilters,
-} from '@store/slices/subscriptionsSlice'
-import { subscriptionsApi, SymbolType, SubscriptionStatus, AlertType, Subscription } from '@services/api/subscriptions'
+import { DeleteOutlined, EditOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import SubscriptionCreate from '@components/subscriptions/SubscriptionCreate'
 import SubscriptionEdit from '@components/subscriptions/SubscriptionEdit'
+import { AlertType, Subscription, SubscriptionStatus, SymbolType } from '@services/api/subscriptions'
+import { useAppDispatch, useAppSelector } from '@store/hooks'
+import {
+  batchActivateSubscriptions,
+  batchDeactivateSubscriptions,
+  batchDeleteSubscriptions,
+  clearFilters,
+  fetchSubscriptions,
+  setFilters,
+} from '@store/slices/subscriptionsSlice'
+import { Badge, Button, Card, Col, Form, Input, message, Popconfirm, Row, Select, Space, Table, Tag, Typography } from 'antd'
+import { useEffect, useState } from 'react'
 import './SubscriptionList.css'
 
 const { Text } = Typography
@@ -109,7 +109,7 @@ const SubscriptionList: React.FC = () => {
   // 编辑成功回调
   const handleEditSuccess = () => {
     dispatch(fetchSubscriptions(filters))
-    message.success('订阅更新成功')
+    // success message already shown in SubscriptionEdit component
   }
 
   // 批量启用

@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.stock.fund.domain.entity.subscription.UserSubscription;
 import com.stock.fund.domain.repository.subscription.UserSubscriptionQuery;
@@ -49,12 +50,14 @@ public class UserSubscriptionRepositoryImpl implements UserSubscriptionRepositor
     }
 
     @Override
+    @Transactional
     public UserSubscription save(UserSubscription subscription) {
         UserSubscriptionPO po = structMapper.toPO(subscription);
         if (subscription.getId() == null) {
             userSubscriptionMapper.insert(po);
             subscription.setId(po.getId());
         } else {
+            // MapStruct now copies id automatically (removed ignore=true)
             userSubscriptionMapper.updateById(po);
         }
         return subscription;

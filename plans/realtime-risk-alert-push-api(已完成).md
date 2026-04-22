@@ -79,9 +79,10 @@ data: {jsonPayload}
 |----------|----------|------|
 | `init` | 连接建立后 | 携带当前未读数，用于前端初始化 |
 | `ping` | 每 30 秒 | 心跳保活 |
-| `new_alert` | 新的风险提醒产生 | 推送完整提醒数据 |
-| `unread_count_change` | 未读数量变化 | 仅推送数量变化（减少场景） |
-| `risk_cleared` | 风险解除 | 之前有风险的标的恢复正常，风险提醒移除 |
+| `new_alert` | 新的风险提醒产生或更新 | 推送完整提醒数据（含明细列表） |
+| `alert_cleared` | 风险解除（价格恢复到安全范围） | 推送更新后的状态（status=CLEARED） |
+| `risk_cleared` | 保留（兼容旧版） | 语义变更为"不再推送"，保留字段定义 |
+| `unread_count_change` | 未读数量变化 | 仅推送数量变化 |
 
 #### 2.2.1 `init` — 连接初始化
 
@@ -99,11 +100,11 @@ data: {"timestamp":"2026-04-20T11:30:30+08:00"}
 
 ```
 
-#### 2.2.3 `new_alert` — 新风险提醒
+#### 2.2.3 `new_alert` — 新风险提醒（v2.0）
 
 ```
 event: new_alert
-data: {"symbol":"000001","symbolName":"平安银行","symbolType":"STOCK","date":"2026-04-20","latestChangePercent":-2.35,"latestTriggeredAt":"2026-04-20T11:30:00+08:00","triggerCount":1,"isRead":false}
+data: {"eventType":"new_alert","messageId":"uuid","payload":{"id":123,"symbol":"000001","symbolName":"平安银行","symbolType":"STOCK","date":"2026-04-20","status":"ACTIVE","latestChangePercent":-2.35,"maxChangePercent":-1.20,"minChangePercent":-3.50,"currentPrice":12.35,"yesterdayClose":12.65,"latestTriggeredAt":"2026-04-20T11:30:00+08:00","triggerCount":2,"isRead":false,"details":[{"id":1001,"changeValue":-1.20,"changePercent":-1.20,"currentPrice":12.50,"triggeredAt":"2026-04-20T11:30:00+08:00","triggerReason":"PRICE_CHANGE","alertType":"PERCENT"}]},"timestamp":"2026-04-20T11:30:05+08:00"}
 
 ```
 
@@ -111,14 +112,21 @@ data: {"symbol":"000001","symbolName":"平安银行","symbolType":"STOCK","date"
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
+| `id` | `number` | risk_alert ID |
 | `symbol` | `string` | 标的代码 |
 | `symbolName` | `string` | 标的名称 |
 | `symbolType` | `string` | `STOCK` / `FUND` |
 | `date` | `string` | 提醒日期（YYYY-MM-DD） |
-| `latestChangePercent` | `number` | 最新涨跌幅（%），保留 2 位小数 |
+| `status` | `string` | `ACTIVE` / `CLEARED` |
+| `latestChangePercent` | `number` | 当前最新涨跌幅（%） |
+| `maxChangePercent` | `number` | 当日最高涨幅（%） |
+| `minChangePercent` | `number` | 当日最低跌幅（%） |
+| `currentPrice` | `number` | 当前价格 |
+| `yesterdayClose` | `number` | 昨日收盘价 |
 | `latestTriggeredAt` | `string` | 最新触发时间（ISO 8601） |
 | `triggerCount` | `number` | 当日该标的触发次数 |
 | `isRead` | `boolean` | 是否已读 |
+| `details` | `array` | 当日所有明细列表 |
 
 #### 2.2.4 `unread_count_change` — 未读数变化
 
@@ -134,7 +142,9 @@ data: {"unreadCount":6,"delta":1,"reason":"NEW_ALERT","timestamp":"2026-04-20T11
 | `delta` | `number` | 变化量（+1 / -N） |
 | `reason` | `string` | 变化原因：`NEW_ALERT` / `MARK_READ` / `RISK_CLEARED` |
 
-#### 2.2.5 `risk_cleared` — 风险解除
+#### 2.2.5 `risk_cleared` — 风险解除（保留兼容）
+
+**说明**：为保持向后兼容，`risk_cleared` 事件仍保留定义，但其语义已变更为"不再主动推送"。前端应优先处理 `alert_cleared` 事件。
 
 ```
 event: risk_cleared
@@ -154,6 +164,35 @@ data: {"id":123,"symbol":"000001","symbolName":"平安银行","symbolType":"STOC
 | `currentPrice` | `number` | 当前价格 |
 | `latestTriggeredAt` | `string` | 最后触发时间（ISO 8601） |
 
+#### 2.2.6 `alert_cleared` — 风险解除（v2.0）
+
+**说明**：`alert_cleared` 替代原来的 `risk_cleared`，语义更清晰——表示"提醒状态变更"而非"风险解除后删除"。
+
+```
+event: alert_cleared
+data: {"eventType":"alert_cleared","messageId":"uuid","payload":{"id":123,"symbol":"000001","symbolName":"平安银行","symbolType":"STOCK","date":"2026-04-20","status":"CLEARED","lastChangePercent":-0.65,"currentChangePercent":-0.65,"maxChangePercent":-1.20,"minChangePercent":-3.50,"currentPrice":12.50,"latestTriggeredAt":"2026-04-20T11:35:00+08:00","triggerCount":2,"details":[{"id":1001,"changeValue":-1.20,"changePercent":-1.20,"currentPrice":12.50,"triggeredAt":"2026-04-20T11:30:00+08:00","triggerReason":"PRICE_CHANGE","alertType":"PERCENT"}]},"timestamp":"2026-04-20T11:35:05+08:00"}
+
+```
+
+**payload 字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | `number` | risk_alert ID |
+| `symbol` | `string` | 标的代码 |
+| `symbolName` | `string` | 标的名称 |
+| `symbolType` | `string` | `STOCK` / `FUND` |
+| `date` | `string` | 提醒日期（YYYY-MM-DD） |
+| `status` | `string` | 始终为 `CLEARED` |
+| `lastChangePercent` | `number` | 解除前的涨跌幅（%） |
+| `currentChangePercent` | `number` | 当前涨跌幅（已恢复） |
+| `maxChangePercent` | `number` | 当日最高涨幅（保留） |
+| `minChangePercent` | `number` | 当日最低跌幅（保留） |
+| `currentPrice` | `number` | 当前价格 |
+| `latestTriggeredAt` | `string` | 最后触发时间（ISO 8601） |
+| `triggerCount` | `number` | 当日触发次数（保留） |
+| `details` | `array` | 明细列表（保留） |
+
 ---
 
 ## 3. 后端接口定义
@@ -171,33 +210,36 @@ public class RiskAlertSSEEvent<T> {
 }
 ```
 
-#### `NewAlertPayload`
+#### `NewAlertPayload`（v2.0）
 
 ```java
 public class NewAlertPayload {
+    private Long id; // Database real ID (v2.0 新增)
     private String symbol;
     private String symbolName;
     private String symbolType;
     private String date;
+    private String status; // ACTIVE / CLEARED (v2.0 新增)
     private BigDecimal latestChangePercent;
     private BigDecimal maxChangePercent;   // 当日最大涨跌幅，首次触发时等于 latestChangePercent
+    private BigDecimal minChangePercent;  // 当日最小涨跌幅 (v2.0 新增)
     private BigDecimal currentPrice;
     private BigDecimal yesterdayClose;
-    private Instant latestTriggeredAt;
+    private String latestTriggeredAt;
     private int triggerCount;
     private boolean isRead;
     private List<RiskAlertDetailPayload> details; // 明细列表，新建时为空列表
 }
 ```
 
-#### `RiskAlertDetailPayload`
+#### `RiskAlertDetailPayload`（v2.0）
 
 ```java
 public class RiskAlertDetailPayload {
     private Long id;
     private BigDecimal changePercent;
     private BigDecimal currentPrice;
-    private Instant triggeredAt;
+    private String triggeredAt; // ISO 8601 格式字符串
     private String triggerReason;
 }
 ```
@@ -215,7 +257,7 @@ public class UnreadCountPayload {
 }
 ```
 
-#### `RiskClearedPayload`
+#### `RiskClearedPayload`（保留兼容）
 
 ```java
 public class RiskClearedPayload {
@@ -228,6 +270,27 @@ public class RiskClearedPayload {
     private BigDecimal currentChangePercent;  // 当前涨跌幅（已恢复）
     private BigDecimal currentPrice;
     private String latestTriggeredAt;
+}
+```
+
+#### `AlertClearedPayload`（v2.0 新增）
+
+```java
+public class AlertClearedPayload {
+    private Long id; // 被清除的风险提醒 ID
+    private String symbol;
+    private String symbolName;
+    private String symbolType;
+    private String date;
+    private String status; // 始终为 CLEARED
+    private BigDecimal lastChangePercent; // 解除前的涨跌幅
+    private BigDecimal currentChangePercent; // 当前涨跌幅（已恢复）
+    private BigDecimal maxChangePercent; // 当日最高涨幅（保留）
+    private BigDecimal minChangePercent; // 当日最低跌幅（保留）
+    private BigDecimal currentPrice;
+    private String latestTriggeredAt;
+    private int triggerCount; // 当日触发次数（保留）
+    private List<RiskAlertDetailPayload> details; // 明细列表（保留）
 }
 ```
 
@@ -291,7 +354,7 @@ public interface RiskAlertPushService {
     /**
      * 向指定用户的所有活跃连接广播新风险提醒
      */
-    void pushNewAlert(Long userId, NewAlertPayload payload);
+    void pushNewAlert(Long userId, Object payload);
 
     /**
      * 向指定用户的所有活跃连接广播未读数变化
@@ -299,9 +362,15 @@ public interface RiskAlertPushService {
     void pushUnreadCountChange(Long userId, UnreadCountPayload payload);
 
     /**
-     * 向指定用户的所有活跃连接广播风险解除事件
+     * 向指定用户的所有活跃连接广播风险解除事件（保留兼容）
      */
     void pushRiskCleared(Long userId, RiskClearedPayload payload);
+
+    /**
+     * 向指定用户的所有活跃连接广播提醒状态变更（v2.0 新增）
+     * 替代 pushRiskCleared，语义更清晰
+     */
+    void pushAlertCleared(Long userId, AlertClearedPayload payload);
 
     /**
      * 向指定用户的所有活跃连接发送心跳
@@ -944,3 +1013,261 @@ public void onRiskAlertCreated(RiskAlertCreatedMessage message) {
 ```
 
 3. `InMemoryRiskAlertPushService` 无需修改，天然适配。
+
+---
+
+## 8. API 接口更新（v2.0）
+
+> 本章节记录 v2.0 重构后的新增和变更接口。
+
+### 8.1 新增 API 端点
+
+#### 8.1.1 `GET /api/risk-alerts/user/{userId}/today-summary` - 当日汇总
+
+**功能**：获取用户当日的风险提醒汇总，用于页面初始化和"暂时无风险"判断。
+
+**请求**：
+
+```
+GET /api/risk-alerts/user/{userId}/today-summary
+```
+
+**响应（有风险）**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "date": "2026-04-21",
+    "hasAlerts": true,
+    "totalCount": 3,
+    "activeCount": 1,
+    "clearedCount": 2,
+    "alerts": [
+      {
+        "id": 123,
+        "symbol": "000001",
+        "symbolName": "平安银行",
+        "symbolType": "STOCK",
+        "status": "ACTIVE",
+        "latestChangePercent": -2.35,
+        "maxChangePercent": -1.20,
+        "minChangePercent": -3.50,
+        "currentPrice": 12.35,
+        "latestTriggeredAt": "2026-04-21T11:35:00+08:00",
+        "triggerCount": 2
+      }
+    ]
+  }
+}
+```
+
+**响应（无风险）**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "date": "2026-04-21",
+    "hasAlerts": false,
+    "totalCount": 0,
+    "activeCount": 0,
+    "clearedCount": 0,
+    "alerts": []
+  }
+}
+```
+
+#### 8.1.2 `GET /api/risk-alerts/user/{userId}/details/{alertId}` - 获取明细列表
+
+**功能**：获取某个风险提醒的所有明细记录。
+
+**请求**：
+
+```
+GET /api/risk-alerts/user/{userId}/details/{alertId}?page=1&size=10
+```
+
+**响应**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "alertId": 123,
+    "symbol": "000001",
+    "totalCount": 5,
+    "details": [
+      {
+        "id": 1001,
+        "changeValue": -1.20,
+        "changePercent": -1.20,
+        "currentPrice": 12.50,
+        "triggeredAt": "2026-04-21T11:30:00+08:00",
+        "triggerReason": "PRICE_CHANGE"
+      }
+    ]
+  }
+}
+```
+
+### 8.2 SSE 事件类型更新（v2.0）
+
+#### 8.2.1 事件类型清单（v2.0）
+
+| 事件类型 | 触发时机 | 说明 |
+|----------|----------|------|
+| `init` | 连接建立后 | 携带当前未读数和今日汇总 |
+| `ping` | 每 30 秒 | 心跳保活 |
+| `new_alert` | 新的风险提醒产生或更新 | 推送完整提醒数据（含明细列表） |
+| `alert_cleared` | 风险解除（价格恢复到安全范围） | 推送更新后的状态（status=CLEARED） |
+| `risk_cleared` | 保留（兼容旧版） | 语义变更为"不再推送"，保留字段定义 |
+| `unread_count_change` | 未读数量变化 | 仅推送数量变化 |
+
+#### 8.2.2 `new_alert` 事件 payload（v2.0）
+
+**变更说明**：新增 `id`, `status`, `maxChangePercent`, `minChangePercent`, `triggerCount`, `details` 字段。
+
+```
+event: new_alert
+data: {"id":123,"symbol":"000001","symbolName":"平安银行","symbolType":"STOCK","date":"2026-04-21","status":"ACTIVE","latestChangePercent":-2.35,"maxChangePercent":-1.20,"minChangePercent":-3.50,"currentPrice":12.35,"yesterdayClose":12.65,"latestTriggeredAt":"2026-04-21T11:35:00+08:00","triggerCount":2,"isRead":false,"details":[{"id":1001,"changeValue":-1.20,"changePercent":-1.20,"currentPrice":12.50,"triggeredAt":"2026-04-21T11:30:00+08:00","triggerReason":"PRICE_CHANGE"}]}
+```
+
+**payload 字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | `number` | risk_alert ID |
+| symbol | `string` | 标的代码 |
+| symbolName | `string` | 标的名称 |
+| symbolType | `string` | `STOCK` / `FUND` |
+| date | `string` | 提醒日期（YYYY-MM-DD） |
+| status | `string` | `ACTIVE` / `CLEARED` |
+| latestChangePercent | `number` | 当前最新涨跌幅（%） |
+| maxChangePercent | `number` | 当日最高涨幅（%） |
+| minChangePercent | `number` | 当日最低跌幅（%） |
+| currentPrice | `number` | 当前价格 |
+| yesterdayClose | `number` | 昨日收盘价 |
+| latestTriggeredAt | `string` | 最新触发时间（ISO 8601） |
+| triggerCount | `number` | 当日该标的触发次数 |
+| isRead | `boolean` | 是否已读 |
+| details | `array` | 当日所有明细列表 |
+
+#### 8.2.3 `alert_cleared` 事件（新增）
+
+**说明**：`alert_cleared` 替代原来的 `risk_cleared`，语义更清晰——表示"提醒状态变更"而非"风险解除后删除"。
+
+```
+event: alert_cleared
+data: {"id":123,"symbol":"000001","symbolName":"平安银行","symbolType":"STOCK","date":"2026-04-21","status":"CLEARED","lastChangePercent":-0.65,"currentChangePercent":-0.65,"maxChangePercent":-1.20,"minChangePercent":-3.50,"currentPrice":12.50,"latestTriggeredAt":"2026-04-21T11:35:00+08:00","triggerCount":2}
+```
+
+**payload 字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | `number` | risk_alert ID |
+| symbol | `string` | 标的代码 |
+| symbolName | `string` | 标的名称 |
+| symbolType | `string` | `STOCK` / `FUND` |
+| date | `string` | 提醒日期（YYYY-MM-DD） |
+| status | `string` | 始终为 `CLEARED` |
+| lastChangePercent | `number` | 解除前的涨跌幅（%） |
+| currentChangePercent | `number` | 当前涨跌幅（已恢复） |
+| maxChangePercent | `number` | 当日最高涨幅（保留） |
+| minChangePercent | `number` | 当日最低跌幅（保留） |
+| currentPrice | `number` | 当前价格 |
+| latestTriggeredAt | `string` | 最后触发时间（ISO 8601） |
+| triggerCount | `number` | 当日触发次数（保留） |
+
+#### 8.2.4 `risk_cleared` 事件（保留兼容）
+
+**说明**：为保持向后兼容，`risk_cleared` 事件仍保留定义，但其语义已变更为"不再主动推送"。前端应优先处理 `alert_cleared` 事件。
+
+### 8.3 新增 DTO 说明（v2.0）
+
+#### 8.3.1 `AlertClearedPayload`
+
+```java
+public class AlertClearedPayload {
+    private Long id;
+    private String symbol;
+    private String symbolName;
+    private String symbolType;
+    private String date;
+    private String status;                    // 始终为 CLEARED
+    private BigDecimal lastChangePercent;      // 解除前的涨跌幅
+    private BigDecimal currentChangePercent;   // 当前涨跌幅（已恢复）
+    private BigDecimal maxChangePercent;       // 当日最高涨幅
+    private BigDecimal minChangePercent;       // 当日最低跌幅
+    private BigDecimal currentPrice;
+    private String latestTriggeredAt;
+    private int triggerCount;                 // 当日触发次数
+}
+```
+
+#### 8.3.2 `RiskAlertTodaySummaryDTO`
+
+```java
+public class RiskAlertTodaySummaryDTO {
+    private String date;                      // YYYY-MM-DD
+    private boolean hasAlerts;               // 是否有任何风险提醒
+    private int totalCount;                   // 总数量
+    private int activeCount;                  // 跟踪中数量
+    private int clearedCount;                 // 已解除数量
+    private List<RiskAlertSummaryDTO> alerts;  // 汇总列表
+}
+```
+
+#### 8.3.3 `RiskAlertDetailDTO`
+
+```java
+public class RiskAlertDetailDTO {
+    private Long id;
+    private BigDecimal changeValue;           // 监控指标值（涨跌幅或价格变化）
+    private BigDecimal changePercent;          // 涨跌幅百分比
+    private BigDecimal currentPrice;           // 价格
+    private LocalDateTime triggeredAt;         // 触发时间
+    private String triggerReason;             // 触发原因
+}
+```
+
+### 8.4 数据库变更说明（v2.0）
+
+#### 8.4.1 `risk_alert` 表变更
+
+| 字段名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| status | VARCHAR(20) | 'NO_ALERT' | 跟踪状态：`ACTIVE` / `CLEARED` / `NO_ALERT` |
+| max_change_percent | DECIMAL(10,2) | 0.00 | 当日最高涨幅 |
+| min_change_percent | DECIMAL(10,2) | 0.00 | 当日最低跌幅 |
+| latest_detail_id | BIGINT | null | 最新一条 detail 的 ID |
+
+
+    change_percent DECIMAL(10, 2) NOT NULL,
+    current_price DECIMAL(10, 2) NOT NULL,
+    triggered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    trigger_reason VARCHAR(50) DEFAULT 'PRICE_CHANGE',
+    time_point VARCHAR(10) NOT NULL,
+    alert_type VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_risk_alert_detail_risk_alert 
+        FOREIGN KEY (risk_alert_id) REFERENCES risk_alert(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_risk_alert_detail_risk_alert_id ON risk_alert_detail(risk_alert_id);
+CREATE INDEX idx_risk_alert_detail_triggered_at ON risk_alert_detail(triggered_at);
+CREATE INDEX idx_risk_alert_detail_symbol_triggered ON risk_alert_detail(symbol, triggered_at);
+
+-- 3. 初始化历史数据
+UPDATE risk_alert SET status = 'CLEARED' WHERE status IS NULL OR status = 'NO_ALERT';
+UPDATE risk_alert SET max_change_percent = change_percent, min_change_percent = change_percent 
+WHERE max_change_percent = 0.00 AND min_change_percent = 0.00;
+```
+
+---
+
+> **文档版本说明**：
+> - v1.0：初始版本，SSE 实时推送基础功能
+> - v2.0：风险提醒重构，新增明细表、状态跟踪、汇总/明细接口

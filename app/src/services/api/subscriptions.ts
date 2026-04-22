@@ -1,5 +1,5 @@
-import apiClient from './client'
 import { ApiResponse } from '@/types'
+import apiClient from './client'
 
 // 订阅类型
 export type SymbolType = 'STOCK' | 'FUND'
@@ -37,6 +37,7 @@ export interface CreateSubscriptionRequest {
   remark?: string
   validFrom?: string
   validUntil?: string
+  isActive?: boolean
 }
 
 // 批量创建订阅请求
@@ -49,6 +50,7 @@ export interface BatchCreateSubscriptionRequest {
   targetPrice?: number
   targetChangePercent?: number
   remark?: string
+  isActive?: boolean
 }
 
 // 批量创建响应

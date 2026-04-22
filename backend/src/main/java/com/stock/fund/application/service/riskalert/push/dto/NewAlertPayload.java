@@ -25,14 +25,17 @@ public class NewAlertPayload {
     private String symbolName;
     private String symbolType;
     private String date;
+    private String status; // ACTIVE / CLEARED
     private BigDecimal latestChangePercent;
     private BigDecimal maxChangePercent; // Max change percent for the day, equals latestChangePercent when first
                                          // triggered
+    private BigDecimal minChangePercent; // Min change percent for the day
     private BigDecimal currentPrice;
     private BigDecimal yesterdayClose;
     private String latestTriggeredAt;
-    private int triggerCount;
     private boolean isRead;
+
+    private String messageId; // Unique message ID for SSE lastEventId tracking
 
     @Builder.Default
     private List<RiskAlertDetailPayload> details = new ArrayList<>(); // Detail list, empty when newly created

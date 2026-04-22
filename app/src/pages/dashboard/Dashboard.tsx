@@ -2,7 +2,6 @@ import {
   BellOutlined,
   EyeOutlined,
   FundOutlined,
-  RiseOutlined,
   StockOutlined,
   WarningOutlined
 } from '@ant-design/icons'
@@ -20,7 +19,6 @@ const Dashboard = () => {
     totalStocks: 0,
     totalFunds: 0,
     activeSubscriptions: 0,
-    triggeredSubscriptions: 0,
     riskAlertCount: 0
   })
   const [recentSubscriptions, setRecentSubscriptions] = useState<Subscription[]>([])
@@ -44,14 +42,11 @@ const Dashboard = () => {
 
       // 活跃订阅数
       const activeSubscriptionsCount = subscriptions.filter((s: Subscription) => s.status === 'ACTIVE').length
-      // 已触发订阅数
-      const triggeredSubscriptionsCount = subscriptions.filter((s: Subscription) => s.status === 'TRIGGERED').length
 
       setStats({
         totalStocks: statsResponse.totalStocks || 0,
         totalFunds: statsResponse.totalFunds || 0,
         activeSubscriptions: activeSubscriptionsCount,
-        triggeredSubscriptions: triggeredSubscriptionsCount,
         riskAlertCount: statsResponse.triggeredAlerts || 0
       })
 
@@ -174,16 +169,6 @@ const Dashboard = () => {
               value={stats.activeSubscriptions}
               prefix={<BellOutlined />}
               valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="已触发订阅"
-              value={stats.triggeredSubscriptions}
-              prefix={<RiseOutlined />}
-              valueStyle={{ color: '#f5222d' }}
             />
           </Card>
         </Col>

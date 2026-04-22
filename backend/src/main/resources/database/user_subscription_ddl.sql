@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS user_subscription (
     symbol VARCHAR(20) NOT NULL,  -- 标的代码
     symbol_type VARCHAR(10) NOT NULL,  -- 标的类型：STOCK/FUND
     symbol_name VARCHAR(100),  -- 标的名称
+    alert_type VARCHAR(20) DEFAULT 'PERCENT',  -- 监控类型：PERCENT（涨跌幅监控）/ AMOUNT（增减金额监控）
     target_change_percent DECIMAL(10, 2),  -- 目标涨跌幅百分比
     is_active BOOLEAN DEFAULT TRUE,  -- 是否激活
     last_triggered TIMESTAMP WITHOUT TIME ZONE,  -- 最后触发时间
@@ -29,6 +30,7 @@ COMMENT ON COLUMN user_subscription.user_id IS '用户ID';
 COMMENT ON COLUMN user_subscription.symbol IS '标的代码';
 COMMENT ON COLUMN user_subscription.symbol_type IS '标的类型：STOCK/FUND';
 COMMENT ON COLUMN user_subscription.symbol_name IS '标的名称';
+COMMENT ON COLUMN user_subscription.alert_type IS '监控类型：PERCENT-涨跌幅监控, AMOUNT-增减金额监控';
 COMMENT ON COLUMN user_subscription.target_change_percent IS '目标涨跌幅百分比';
 COMMENT ON COLUMN user_subscription.is_active IS '是否激活';
 COMMENT ON COLUMN user_subscription.last_triggered IS '最后触发时间';

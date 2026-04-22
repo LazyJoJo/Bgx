@@ -19,9 +19,9 @@ import com.stock.fund.infrastructure.entity.subscription.UserSubscriptionPO;
 public interface UserSubscriptionStructMapper {
 
     /**
-     * 实体转 PO 注意：id、createdAt、updatedAt 由数据库自动管理，设置为 ignore
+     * 实体转 PO 注意：createdAt、updatedAt 由数据库自动管理，设置为 ignore 但 id 不应该被忽略 - 因为 update
+     * 操作需要 id 字段 MapStruct 会自动复制 id 字段的值
      */
-    @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     UserSubscriptionPO toPO(UserSubscription entity);

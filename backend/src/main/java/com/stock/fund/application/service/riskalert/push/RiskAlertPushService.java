@@ -2,6 +2,8 @@ package com.stock.fund.application.service.riskalert.push;
 
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.stock.fund.application.service.riskalert.push.dto.AlertClearedPayload;
+import com.stock.fund.application.service.riskalert.push.dto.InitPayload;
 import com.stock.fund.application.service.riskalert.push.dto.RiskClearedPayload;
 import com.stock.fund.application.service.riskalert.push.dto.UnreadCountPayload;
 
@@ -32,6 +34,16 @@ public interface RiskAlertPushService {
      * 向指定用户的所有活跃连接广播风险消除事件
      */
     void pushRiskCleared(Long userId, RiskClearedPayload payload);
+
+    /**
+     * 向指定用户的所有活跃连接广播风险解除事件（alert_cleared）
+     */
+    void pushAlertCleared(Long userId, AlertClearedPayload payload);
+
+    /**
+     * 向指定用户的所有活跃连接发送初始化事件
+     */
+    void sendInit(Long userId, InitPayload payload);
 
     /**
      * 向指定用户的所有活跃连接发送心跳

@@ -1,7 +1,9 @@
 package com.stock.fund.interfaces.controller.riskalert;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,7 +12,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.stock.fund.application.query.RiskAlertQueryService;
+import com.stock.fund.application.service.riskalert.RiskAlertAppService;
 import com.stock.fund.application.service.riskalert.push.RiskAlertPushService;
+import com.stock.fund.application.service.riskalert.push.dto.InitPayload;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +40,8 @@ import lombok.extern.slf4j.Slf4j;
 public class RiskAlertSSEController {
 
     private final RiskAlertPushService riskAlertPushService;
+    private final RiskAlertAppService riskAlertAppService;
+    private final RiskAlertQueryService riskAlertQueryService;
 
     /**
      * SSE streaming endpoint
@@ -90,6 +97,9 @@ public class RiskAlertSSEController {
         log.info("[SSE Controller] Registered emitter for userId={}, online count: {}", userId,
                 riskAlertPushService.getOnlineUserCount());
 
+        // Send init event with real data (unread count + today summary)
+        sendInitEvent(userId);
+
         // Register callbacks for connection cleanup
         emitter.onCompletion(() -> {
             log.info("[SSE Controller] SSE connection completed: userId={}", userId);
@@ -116,6 +126,38 @@ public class RiskAlertSSEController {
     public Map<String, Object> getStats() {
         return Map.of("onlineUserCount", riskAlertPushService.getOnlineUserCount(), "timestamp",
                 System.currentTimeMillis());
+    }
+
+    /**
+     * 发送初始化事件
+     * <p>
+     * 在 SSE 连接建立后立即发送，包含未读数和今日汇总
+     */
+    private void sendInitEvent(Long userId) {
+        try {
+            // Get unread count
+            long unreadCount = riskAlertAppService.getUnreadCount(userId);
+
+            // Get today's summary
+            var todaySummaryList = riskAlertQueryService.getTodaySummary(userId);
+            List<InitPayload.TodaySummaryItem> todaySummary = todaySummaryList.stream()
+                    .map(dto -> InitPayload.TodaySummaryItem.builder().id(dto.id()).symbol(dto.symbol())
+                            .symbolName(dto.symbolName()).symbolType(dto.symbolType()).status(dto.status())
+                            .latestChangePercent(
+                                    dto.latestChangePercent() != null ? dto.latestChangePercent().toString() : null)
+                            .latestTriggeredAt(
+                                    dto.latestTriggeredAt() != null ? dto.latestTriggeredAt().toString() : null)
+                            .build())
+                    .collect(Collectors.toList());
+
+            InitPayload payload = InitPayload.builder().unreadCount(unreadCount).todaySummary(todaySummary).build();
+
+            riskAlertPushService.sendInit(userId, payload);
+            log.info("[SSE Controller] Sent init event to userId={}, unreadCount={}, todaySummaryCount={}", userId,
+                    unreadCount, todaySummary.size());
+        } catch (Exception e) {
+            log.error("[SSE Controller] Failed to send init event to userId={}", userId, e);
+        }
     }
 
     /**

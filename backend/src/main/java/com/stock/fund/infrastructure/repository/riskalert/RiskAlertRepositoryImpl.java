@@ -114,6 +114,11 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
         alert.setTriggeredAt(po.getTriggeredAt());
         alert.setCreatedAt(po.getCreatedAt());
         alert.setUpdatedAt(po.getUpdatedAt());
+        // New fields for risk alert redesign
+        alert.setStatus(po.getStatus());
+        alert.setMaxChangePercent(po.getMaxChangePercent());
+        alert.setMinChangePercent(po.getMinChangePercent());
+        alert.setLatestDetailId(po.getLatestDetailId());
         return alert;
     }
 
@@ -134,6 +139,11 @@ public class RiskAlertRepositoryImpl implements RiskAlertRepository {
         po.setTriggeredAt(alert.getTriggeredAt());
         po.setCreatedAt(alert.getCreatedAt());
         po.setUpdatedAt(alert.getUpdatedAt());
+        // New fields for risk alert redesign
+        po.setStatus(alert.getStatus());
+        po.setMaxChangePercent(alert.getMaxChangePercent());
+        po.setMinChangePercent(alert.getMinChangePercent());
+        po.setLatestDetailId(alert.getLatestDetailId());
         return po;
     }
 }
