@@ -42,5 +42,4 @@ target/
 
 .qwen
 QWEN.md
-.kilo*
 *.sql
