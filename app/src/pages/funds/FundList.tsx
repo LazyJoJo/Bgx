@@ -1,12 +1,14 @@
-import { Table, Tag, Button, Space, message } from 'antd'
-import { useEffect } from 'react'
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import FundCreateModal from '@components/funds/FundCreateModal'
 import { useAppDispatch, useAppSelector } from '@store/hooks'
 import { fetchFunds } from '@store/slices/fundsSlice'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Button, Space, Table, Tag, message } from 'antd'
+import { useEffect, useState } from 'react'
 
 const FundList = () => {
   const dispatch = useAppDispatch()
   const { list, loading } = useAppSelector(state => state.funds)
+  const [createModalVisible, setCreateModalVisible] = useState(false)
 
   useEffect(() => {
     dispatch(fetchFunds({}))
@@ -59,15 +61,15 @@ const FundList = () => {
       key: 'action',
       render: (_: any, record: any) => (
         <Space size="middle">
-          <Button 
-            type="link" 
+          <Button
+            type="link"
             icon={<EditOutlined />}
             onClick={() => message.info(`编辑基金：${record.code}`)}
           >
             编辑
           </Button>
-          <Button 
-            type="link" 
+          <Button
+            type="link"
             danger
             icon={<DeleteOutlined />}
             onClick={() => message.warning(`删除功能开发中`)}
@@ -83,10 +85,10 @@ const FundList = () => {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <h2>基金管理</h2>
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           icon={<PlusOutlined />}
-          onClick={() => message.info('添加基金功能开发中')}
+          onClick={() => setCreateModalVisible(true)}
         >
           添加基金
         </Button>
@@ -101,6 +103,11 @@ const FundList = () => {
           showSizeChanger: true,
           showQuickJumper: true
         }}
+      />
+
+      <FundCreateModal
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
       />
     </div>
   )
