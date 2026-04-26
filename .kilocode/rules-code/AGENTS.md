@@ -48,4 +48,33 @@ When writing tests that interact with UI elements — buttons, Modal titles, for
 
 `disabled` **must not** bind to async API results. Only local-validatable rules (format, required, length). Backend validation errors show via `message.error`/`toast`, not disabled buttons.
 
+## Test Execution & Debugging Rules — MUST FOLLOW
+
+### Stop on First Failure — NO EXCEPTIONS
+
+When running tests, **you MUST stop immediately upon the first failure**. Do not continue running the remaining test suite.
+
+- Frontend unit tests: use `--grep "test name"` to run a single test, or set `bail: 1` in vitest config
+- Backend tests: use `-Dtest=ClassName#methodName` to run a single test method
+- E2E tests: use `npx playwright test --grep "test name"` for single test execution
+- **Rationale**: Continuing after a failure produces cascading false negatives, wastes time, and obscures the root cause
+
+### No Blind Re-runs
+
+You are strictly forbidden from re-running the entire test suite without first analyzing and fixing the first failure.
+
+- Required workflow: run → first failure → **stop** → analyze logs/screenshots → identify root cause → fix → re-run **only the failed test** → pass → proceed to next test
+- If a test fails twice with the same error, the issue is deterministic — do NOT retry again; debug it
+
+### Test Failure Analysis Order
+
+When a test fails, analyze in this sequence:
+
+1. **Selector/text mismatch**: Check whether the test's selector text matches the actual source component text. If you wrote the test, verify you read the source file first
+2. **Hardcoded data invalid**: Check if the test uses guessed hardcodes (fund codes, stock codes). Replace with API-fetched real data or ask the user
+3. **Application bug**: Only after eliminating 1 and 2, consider that the application code itself is buggy
+
+### Debug Logging
+
+All debug log output MUST be in English, per project-wide logging rules.
 

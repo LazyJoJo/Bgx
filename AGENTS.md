@@ -59,12 +59,4 @@ cd app && npx playwright test --grep "test name"   # single test, ignoreHTTPSErr
 
 `disabled` **must not** bind to async API results. Only local-validatable rules (format, required, length). Backend validation errors show via `message.error`/`toast`, not disabled buttons.
 
-## Caching
 
-4 Caffeine caches: `generalCache`, `stockCache`, `fundCache`, `apiCache` — TTL 3600s, maxSize 10000.
-
-## Scheduling
-
-- `DataCollectionScheduler`: stock basics 2AM, fund basics 3AM, quotes during trading hours
-- `RiskAlertScheduler`: **11:30 and 14:30 on working days only**
-- Tests set scheduler crons to non-executing dates to prevent flakiness
