@@ -22,6 +22,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import com.stock.fund.application.query.RiskAlertQueryService;
 import com.stock.fund.application.service.riskalert.dto.RiskAlertMergeDTO;
@@ -46,6 +48,7 @@ import com.stock.fund.domain.service.riskalert.RiskAlertDomainService;
  * 风险提醒应用服务测试 TDD RED阶段：编写测试用例，验证业务逻辑
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class RiskAlertAppServiceTest {
 
         @Mock
@@ -188,6 +191,9 @@ class RiskAlertAppServiceTest {
                 quote.setChange(new BigDecimal("0.55"));
                 when(stockQuoteRepository.findAllLatestQuotes()).thenReturn(List.of(quote));
 
+                // Mock riskAlertDetailRepository for save operation
+                when(riskAlertDetailRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
                 when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(any(), any(), any(), any()))
                                 .thenReturn(Optional.empty());
                 when(riskAlertRepository.save(any(RiskAlert.class))).thenAnswer(i -> i.getArgument(0));
@@ -241,6 +247,9 @@ class RiskAlertAppServiceTest {
                 quote.setClose(new BigDecimal("10.60"));
                 quote.setChange(new BigDecimal("-0.65"));
                 when(stockQuoteRepository.findAllLatestQuotes()).thenReturn(List.of(quote));
+
+                // Mock riskAlertDetailRepository for save operation
+                when(riskAlertDetailRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
                 when(riskAlertRepository.findByUserIdAndSymbolAndAlertDateAndTimePoint(any(), any(), any(), any()))
                                 .thenReturn(Optional.empty());

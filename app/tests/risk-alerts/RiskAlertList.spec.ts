@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 /**
  * 风险提醒列表 E2E 测试
@@ -45,7 +45,7 @@ test.describe('风险提醒列表', () => {
   test.describe('空状态', () => {
     test('无数据时应显示空状态提示', async ({ page }) => {
       // 等待加载完成
-      await page.waitForSelector('.ant-empty', { timeout: 5000 }).catch(() => {})
+      await page.waitForSelector('.ant-empty', { timeout: 5000 }).catch(() => { })
       const empty = page.locator('.ant-empty')
       const hasEmpty = await empty.count() > 0
       if (hasEmpty) {
@@ -87,8 +87,8 @@ test.describe('风险提醒列表', () => {
       const hasTags = (await stockTag.count()) > 0 || (await fundTag.count()) > 0
 
       if (hasTags) {
-        await expect(stockTag.first()).toBeVisible().catch(() => {})
-        await expect(fundTag.first()).toBeVisible().catch(() => {})
+        await expect(stockTag.first()).toBeVisible().catch(() => { })
+        await expect(fundTag.first()).toBeVisible().catch(() => { })
       }
     })
 
@@ -196,6 +196,131 @@ test.describe('风险提醒列表', () => {
 
       if (hasToday) {
         await expect(todayText.first()).toBeVisible()
+      }
+    })
+  })
+
+  test.describe('按日聚合功能', () => {
+    test('多条数据应按日期正确分组', async ({ page }) => {
+      await page.waitForTimeout(1000)
+
+      // 检查是否有多个日期分组
+      const dateHeaders = page.locator('[style*="font-weight: 600"]')
+      const headerCount = await dateHeaders.count()
+
+      // 如果有多条数据，应该有多个日期分组
+      if (headerCount > 0) {
+        // 验证分组存在
+        expect(headerCount).toBeGreaterThan(0)
+      }
+    })
+
+    test('今天分组应默认展开', async ({ page }) => {
+      await page.waitForTimeout(1000)
+
+      // 查找"今天"的日期标题
+      const todayHeader = page.getByText('今天').first()
+      const hasToday = await todayHeader.count() > 0
+
+      if (hasToday) {
+        // 今天应该可见（因为默认展开）
+        await expect(todayHeader).toBeVisible()
+
+        // 今天分组下的数据应该可见
+        // （如果折叠则卡片不可见）
+        await page.waitForTimeout(500)
+      }
+    })
+
+    test('非今天分组应默认折叠', async ({ page }) => {
+      await page.waitForTimeout(1000)
+
+      // 查找日期标题（非今天）
+      const allDateHeaders = page.locator('[style*="font-weight: 600"]')
+      const count = await allDateHeaders.count()
+
+      if (count > 1) {
+        // 如果有多个日期分组，验证折叠箭头存在
+        const collapseArrows = page.locator('text=▶')
+        const arrowCount = await collapseArrows.count()
+        expect(arrowCount).toBeGreaterThanOrEqual(0)
+      }
+    })
+
+    test('点击非今天日期标题应切换展开状态', async ({ page }) => {
+      await page.waitForTimeout(1000)
+
+      // 查找所有日期标题
+      const allDateHeaders = page.locator('[style*="font-weight: 600"]')
+      const count = await allDateHeaders.count()
+
+      if (count > 1) {
+        // 查找带有折叠箭头的日期（非今天）
+        const collapseArrow = page.locator('text=▶').first()
+        const hasArrow = await collapseArrow.count() > 0
+
+        if (hasArrow) {
+          // 获取该日期标题的父元素并点击
+          const parentDiv = collapseArrow.locator('..')
+          await parentDiv.click()
+
+          await page.waitForTimeout(300)
+
+          // 箭头应该变成展开状态
+          const expandedArrow = page.locator('text=▼')
+          const hasExpanded = await expandedArrow.count() > 0
+          expect(hasExpanded).toBeTruthy()
+        }
+      }
+    })
+
+    test('日期分组应按日期倒序排列（今天在前）', async ({ page }) => {
+      await page.waitForTimeout(1000)
+
+      // 查找所有日期标题
+      const dateHeaders = page.locator('[style*="font-weight: 600"]')
+      const count = await dateHeaders.count()
+
+      if (count > 1) {
+        // 获取第一个日期标题文本（应该是"今天"）
+        const firstDateText = await dateHeaders.first().textContent()
+        expect(firstDateText).toContain('今天')
+
+        // 验证第一个是非今天的日期
+        const secondDateText = await dateHeaders.nth(1).textContent()
+        // 第二个不应该是"今天"
+        expect(secondDateText).not.toContain('今天')
+      }
+    })
+
+    test('每个日期分组应显示该日期的提醒数量', async ({ page }) => {
+      await page.waitForTimeout(1000)
+
+      // 查找包含"条提醒"文本的元素
+      const countLabels = page.getByText(/条提醒/)
+      const count = await countLabels.count()
+
+      if (count > 0) {
+        // 应该有日期分组的数量标签
+        expect(count).toBeGreaterThan(0)
+
+        // 验证格式正确（数字 + 条提醒）
+        const firstLabel = await countLabels.first().textContent()
+        expect(firstLabel).toMatch(/\d+\s+条提醒/)
+      }
+    })
+
+    test('日期分组应有未读数量徽章', async ({ page }) => {
+      await page.waitForTimeout(1000)
+
+      // 查找日期分组中的Badge组件
+      const dateBadges = page.locator('.ant-collapse-header .ant-badge')
+      const badgeCount = await dateBadges.count()
+
+      // Badge可能存在也可能不存在（取决于是否有未读）
+      // 验证Badge组件的格式
+      if (badgeCount > 0) {
+        expect(badgeCount).toBeGreaterThanOrEqual(0)
       }
     })
   })

@@ -1,28 +1,34 @@
 package com.stock.fund.test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.stock.fund.Application;
 import com.stock.fund.application.service.DataCollectionAppService;
 import com.stock.fund.domain.entity.DataCollectionTarget;
 import com.stock.fund.domain.entity.Fund;
 import com.stock.fund.domain.repository.DataCollectionTargetRepository;
 import com.stock.fund.domain.repository.FundRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 添加目标基金功能测试类
- * 测试addTargetFund方法的各种场景
+ * 添加目标基金功能测试类 测试addTargetFund方法的各种场景
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @ContextConfiguration(classes = Application.class)
 @Transactional // 使用事务确保测试数据不会影响其他数据
 class AddTargetFundTest {
@@ -139,7 +145,7 @@ class AddTargetFundTest {
     void testAddMultipleTargetFunds() {
         System.out.println("\n=== 测试添加多个基金目标 ===");
 
-        String[] fundCodes = {"000001", "000011", "110011"};
+        String[] fundCodes = { "000001", "000011", "110011" };
         DataCollectionTarget[] targets = new DataCollectionTarget[fundCodes.length];
 
         // 添加多个基金目标
@@ -154,8 +160,7 @@ class AddTargetFundTest {
         // 验证每个目标都是唯一的
         for (int i = 0; i < targets.length; i++) {
             for (int j = i + 1; j < targets.length; j++) {
-                assertNotEquals(targets[i].getId(), targets[j].getId(),
-                    "不同的基金目标应该有不同的ID");
+                assertNotEquals(targets[i].getId(), targets[j].getId(), "不同的基金目标应该有不同的ID");
             }
         }
         System.out.println("多个基金目标添加测试通过");

@@ -110,7 +110,7 @@ class RiskAlertControllerTest {
                 when(riskAlertAppService.getTodayRiskAlerts(1L)).thenReturn(List.of(summary));
 
                 // when & then
-                mockMvc.perform(get("/api/risk-alerts/today")).andExpect(status().isOk())
+                mockMvc.perform(get("/api/risk-alerts/user/1/today")).andExpect(status().isOk())
                                 .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data").isArray())
                                 .andExpect(jsonPath("$.data[0].items.length()").value(2))
                                 .andExpect(jsonPath("$.data[0].items[0].symbolType").value("STOCK"))

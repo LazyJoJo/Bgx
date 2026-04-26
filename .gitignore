@@ -45,3 +45,5 @@ QWEN.md
 *.sql
 */test-results/
 
+app/test_output.txt
+app/tsconfig.tsbuildinfo
